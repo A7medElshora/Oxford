@@ -1,0 +1,39 @@
+# Interaction and learning-flow checklist
+
+- [ ] Replace snackbar-only course actions with real course details and local enrollment/cart actions.
+- [ ] Add functional student pages for courses, browse, exams, assignments, calendar, community, profile, and cart.
+- [ ] Add functional admin pages for students, teachers, courses, attendance, payments, reports, messages, and settings.
+- [ ] Add functional teacher pages for courses, students, lessons, exams, assignments, attendance, messages, and profile.
+- [x] Add shared local content store for teacher-created lessons, lecture links, exams, submissions, and grades.
+- [x] Let teachers create and publish educational material with lesson title, description, resource link, and visibility.
+- [x] Let teachers create exams with questions, answer choices, correct answers, duration, and publication state.
+- [x] Let teachers review student submissions, enter/update grades, and see answer summaries.
+- [x] Show teacher-published lessons, lecture links, exams, and grades in the student workspace.
+- [ ] Make dashboard CTAs and table actions navigate to relevant views.
+- [ ] Add functional modal/form flows for creating records and mark local changes with success feedback.
+- [x] Verify role-based navigation, logout, responsive sidebar, mobile menu, and teacher-to-student local sharing after role switch.
+- [ ] Run TypeScript/build checks and save a new checkpoint after verification.
+- [x] Replace visible Tafra brand copy with Oxford across login, shell, dashboards, footer, and metadata.
+- [x] Rebalance design tokens toward Oxford orange, ink black, warm white, and readable status colors.
+- [x] Update active, hover, button, chart, progress, badge, focus, and illustration accents to the orange/black system.
+- [x] Verify contrast, responsive layout, and existing role-based learning flows after the brand update.
+- [ ] Save and deliver the Oxford-branded checkpoint.
+- [x] Map each public course to teachers who teach the same subject.
+- [x] Show course-specific teacher cards with each teacher's material options and discount details.
+- [x] Add course-level enrollment/booking form with teacher selection, student/parent details, grade, duration, unit/chapter, and dynamic price.
+- [x] Link course teacher cards to the teacher profile while preserving course context.
+- [x] Test course-to-teacher filtering, discounted pricing, validation, local confirmation, and responsive layout.
+- [ ] Add a public visitor landing page with Oxford branding, course discovery, and clear sign-in entry points.
+- [ ] Let visitors browse public course catalog and course detail previews without authentication.
+- [ ] Let visitors preview public lesson, exam, and assignment information without accessing private submissions or grades.
+- [ ] Gate My Exams, My Lectures, My Assignments, results, attendance, cart, profile, chat, and role dashboards behind login.
+- [ ] Add a consistent login prompt/redirect when a visitor attempts a protected action.
+- [ ] Preserve teacher-published public previews while keeping teacher authoring and student progress private.
+- [ ] Test visitor navigation, protected-route prompts, login return path, and post-login role dashboards.
+- [x] Add a prominent auto-advancing announcements carousel with manual controls and accessible labels.
+- [x] Add public teacher cards with names, subjects, photos, course prices, discounts, and non-fabricated trust labels.
+- [x] Add teacher profile pages with bio, subjects, schedule, materials, and booking CTA.
+- [x] Add booking form with student name, student phone, parent phone, grade track, booking type, unit/chapter, and dynamic price.
+- [x] Add local booking confirmation and validation states without claiming real payment or enrollment.
+- [x] Test announcement controls, discount calculations, form validation, mobile layout, and keyboard access.
+
