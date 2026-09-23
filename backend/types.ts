@@ -1,13 +1,24 @@
 import type { Request } from "express";
 
 export type Role = "student" | "teacher" | "admin";
-export type CourseId = "programming" | "science" | "skills";
+export type CourseId = string;
+export const permissionKeys = ["users", "courses", "content", "reports", "payments", "settings"] as const;
+export type Permission = (typeof permissionKeys)[number];
 
 export type AuthUser = {
   id: string;
   email: string;
   name: string;
   role: Role;
+  password?: string;
+  phone?: string;
+  parentPhone?: string;
+  grade?: string;
+  subject?: string;
+  grades?: string[];
+  avatar?: string;
+  status?: "pending" | "approved" | "rejected";
+  permissions?: Permission[];
 };
 
 export type Course = {
@@ -21,6 +32,18 @@ export type Course = {
   lessonCount: number;
   price: number;
   published: boolean;
+  targetGrades: string[];
+  teacherPlans: CourseTeacherPlan[];
+};
+
+export type CourseTeacherPlan = {
+  teacherId: string;
+  monthlyPrice: number;
+  lessonPrice: number;
+  chapterPrice: number;
+  discountEnabled: boolean;
+  discountKind?: "percent" | "amount";
+  discountValue?: number;
 };
 
 export type Teacher = {
@@ -46,13 +69,14 @@ export type Lesson = {
   createdAt: string;
 };
 
-export type ExamQuestion = { id: string; prompt: string; choices: string[]; correctIndex: number };
+export type ExamQuestion = { id: string; prompt: string; choices: string[]; correctIndex: number; marks?: number };
 export type Exam = {
   id: string;
   courseId: CourseId;
   title: string;
   description: string;
   duration: number;
+  resultVisibility?: "immediate" | "after_review";
   questions: ExamQuestion[];
   teacherId: string;
   published: boolean;
@@ -71,6 +95,7 @@ export type Submission = {
 
 export type Enrollment = {
   id: string;
+  studentId?: string;
   courseId: CourseId;
   teacherId: string;
   studentName: string;
@@ -80,7 +105,19 @@ export type Enrollment = {
   bookingType: string;
   unit?: string;
   amount: number;
+  transferImage?: string;
   status: "pending" | "approved" | "rejected";
+  createdAt: string;
+};
+
+export type Notification = {
+  id: string;
+  userId: string;
+  type: "enrollment" | "system";
+  title: string;
+  message: string;
+  enrollmentId?: string;
+  read: boolean;
   createdAt: string;
 };
 
@@ -116,6 +153,20 @@ export type Message = { id: string; senderId: string; body: string; createdAt: s
 export type Conversation = { id: string; participantIds: string[]; title: string; messages: Message[] };
 export type CalendarEvent = { id: string; title: string; courseId?: CourseId; startsAt: string; endsAt: string; type: "lesson" | "exam" | "event"; meetingUrl?: string };
 export type CartItem = { courseId: CourseId; quantity: number };
+export type PlatformSettings = { newYear: boolean; ramadan?: boolean; adminInviteCode: string };
+export type Announcement = {
+  id: string;
+  kicker: string;
+  title: string;
+  body: string;
+  cta: string;
+  target: "home" | "courses" | "teachers" | "lessons" | "exams" | "assignments";
+  mediaType: "none" | "image" | "video";
+  mediaUrl?: string;
+  published: boolean;
+  sortOrder: number;
+  createdAt: string;
+};
 
 export type Store = {
   users: AuthUser[];
@@ -125,6 +176,7 @@ export type Store = {
   exams: Exam[];
   submissions: Submission[];
   enrollments: Enrollment[];
+  notifications: Notification[];
   attendance: AttendanceRecord[];
   assignments: Assignment[];
   assignmentSubmissions: AssignmentSubmission[];
@@ -132,6 +184,8 @@ export type Store = {
   calendar: CalendarEvent[];
   carts: Map<string, CartItem[]>;
   sessions: Map<string, string>;
+  settings: PlatformSettings;
+  announcements: Announcement[];
 };
 
 declare global {

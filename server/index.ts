@@ -2,6 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
+import api from "../backend/app";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,6 +17,7 @@ async function startServer() {
       ? path.resolve(__dirname, "public")
       : path.resolve(__dirname, "..", "dist", "public");
 
+  app.use("/api", api);
   app.use(express.static(staticPath));
 
   // Handle client-side routing - serve index.html for all routes
@@ -23,11 +25,15 @@ async function startServer() {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
-  const port = process.env.PORT || 3000;
+  const port = Number(process.env.PORT || 3000);
+  const host = process.env.HOST || "0.0.0.0";
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  server.listen(port, host, () => {
+    console.log(`Server running on http://${host}:${port}/`);
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((error) => {
+  console.error("Failed to start production server:", error);
+  process.exitCode = 1;
+});

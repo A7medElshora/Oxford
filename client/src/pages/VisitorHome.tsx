@@ -1,5 +1,5 @@
 /* Oxford Learning Platform: public visitor experience with orange signals, ink-black authority, warm paper, and RTL-first navigation. */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import {
   ArrowLeft,
@@ -20,11 +20,14 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { api, apiMe, getApiToken, type ApiUser } from "@/lib/api";
+import { compressImage } from "@/lib/image";
+import ImageCropDialog from "@/components/ImageCropDialog";
 import { buildPendingSubscription, currentStudentId, readGovernance, writeGovernance } from "@/lib/learningGovernance";
 
-const heroImg = "/manus-storage/tafra-hero_39e40131.png";
-const programmingImg = "/manus-storage/tafra-course-programming_a75d5b1c.png";
-const scienceImg = "/manus-storage/tafra-course-science_d8c92127.png";
+const heroImg = "/assets/learning.png";
+const programmingImg = "/assets/learning.png";
+const scienceImg = "/assets/learning.png";
 
 type View =
   | "home"
@@ -37,6 +40,10 @@ type View =
   | "assignments";
 
 type Props = { onLogin: () => void };
+
+type ApiCourse = { id: string; title: string; description: string; level: string; duration: string; image: string; teacherIds: string[]; lessonCount: number; published: boolean; teachers?: ApiTeacher[]; teacherPlans?: ApiTeacherPlan[] };
+type ApiTeacherPlan = { teacherId: string; monthlyPrice: number; lessonPrice: number; chapterPrice: number; discountEnabled: boolean; discountKind?: "percent" | "amount"; discountValue?: number };
+type ApiTeacher = { id: string; name: string; subject: string; bio: string; image: string; courseIds: string[]; trustLabel: string; plans?: { label: string; price: number }[] };
 
 type Teacher = {
   id: string;
@@ -135,29 +142,7 @@ const publicTeachers: Teacher[] = [
   },
 ];
 
-const announcements = [
-  {
-    kicker: "OXFORD / ANNOUNCEMENT 01",
-    title: "خصم على مسارات المراجعة قبل الامتحان",
-    body: "اختَر مدرسك ومسارك، واطلع على سعر الحجز قبل تسجيل بياناتك.",
-    cta: "شاهد المدرسين",
-    target: "teachers" as View,
-  },
-  {
-    kicker: "OXFORD / OPEN WEEK",
-    title: "محاضرة تعريفية مفتوحة للزوار",
-    body: "تعرّف على طريقة شرح المدرسين قبل حفظ التقدم في حسابك.",
-    cta: "تصفح المحاضرات",
-    target: "lessons" as View,
-  },
-  {
-    kicker: "OXFORD / SMART PRACTICE",
-    title: "نماذج امتحانات لمراجعة أهدأ",
-    body: "استكشف شكل الأسئلة والوقت المتوقع، ثم سجّل الدخول عند بدء الحل.",
-    cta: "استكشف الامتحانات",
-    target: "exams" as View,
-  },
-];
+type Announcement = { id: string; kicker: string; title: string; body: string; cta: string; target: View; mediaType: "none" | "image" | "video"; mediaUrl?: string; published: boolean; sortOrder: number };
 
 const publicCourses = [
   {
@@ -197,22 +182,76 @@ const publicCourses = [
     accent: "orange",
   },
 ];
+type PublicCourse = {
+  id: string;
+  title: string;
+  desc: string;
+  teacher: string;
+  teacherIds: string[];
+  level: string;
+  lessons: number;
+  duration: string;
+  image: string;
+  accent: string;
+  teachers?: Teacher[];
+};
 
 export default function VisitorHome({ onLogin }: Props) {
   const [, setLocation] = useLocation();
   const [view, setView] = useState<View>("home");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [selectedCourse, setSelectedCourse] = useState(publicCourses[0]);
-  const [selectedTeacher, setSelectedTeacher] = useState(publicTeachers[0]);
+  const [selectedCourse, setSelectedCourse] = useState<PublicCourse | null>(null);
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [teacherBackView, setTeacherBackView] = useState<View>("teachers");
   const [bannerIndex, setBannerIndex] = useState(0);
+  const [courses, setCourses] = useState<PublicCourse[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [enrolledStudents, setEnrolledStudents] = useState(0);
   useEffect(() => {
+    void Promise.all([api<ApiCourse[]>("/courses"), api<ApiTeacher[]>("/teachers")]).then(([items, teacherItems]) => {
+      const mappedTeachers = teacherItems.map((teacher) => ({ ...teacher, courses: teacher.courseIds.length, students: "", plans: teacher.plans || [] }));
+      setTeachers(mappedTeachers);
+      if (!items.length) {
+        setCourses([]);
+        setSelectedCourse(null);
+        return;
+      }
+      const mapped = items.map((item) => {
+        const plans = item.teacherPlans || [];
+        const teachers = (item.teachers || []).map((teacher) => {
+          const plan = plans.find((entry) => entry.teacherId === teacher.id);
+          const detailedPlans = plan ? [
+            { label: "شهري", price: plan.monthlyPrice },
+            { label: "الباب الأول", price: plan.chapterPrice },
+            { label: "بالحصة", price: plan.lessonPrice },
+          ] : (teacher.plans || []);
+          const discount = plan?.discountEnabled && plan.discountValue !== undefined
+            ? `${plan.discountValue}${plan.discountKind === "percent" ? "%" : " جنيه"}`
+            : undefined;
+          return { ...teacher, courses: teacher.courseIds.length, students: "", plans: detailedPlans, discount, discountKind: plan?.discountKind };
+        });
+        return { id: item.id, title: item.title, desc: item.description, teacher: teachers.map((teacher) => teacher.name).join("، ") || "مدرسو الكورس", teacherIds: item.teacherIds, level: item.level, lessons: item.lessonCount, duration: item.duration, image: item.image || heroImg, accent: "orange", teachers };
+      });
+      setCourses(mapped);
+      setSelectedCourse((current) => (current && mapped.find((item) => item.id === current.id)) || mapped[0]);
+      setSelectedTeacher((current) => (current && mappedTeachers.find((item) => item.id === current.id)) || mappedTeachers[0] || null);
+    }).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    void api<Announcement[]>("/announcements").then(items => setAnnouncements(items)).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    void api<{ enrolledStudents: number }>("/public/stats").then(stats => setEnrolledStudents(stats.enrolledStudents)).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (announcements.length < 2 || announcements[bannerIndex]?.mediaType === "video") return;
     const timer = window.setInterval(
       () => setBannerIndex(index => (index + 1) % announcements.length),
       5200
     );
     return () => window.clearInterval(timer);
-  }, []);
+  }, [announcements, bannerIndex]);
 
   const browse = (next: View) => {
     setView(next);
@@ -224,7 +263,7 @@ export default function VisitorHome({ onLogin }: Props) {
     toast.info("هذه المساحة خاصة بالحسابات المسجلة. سجّل الدخول للمتابعة.");
     setLocation("/login");
   };
-  const openCourse = (course: (typeof publicCourses)[number]) => {
+  const openCourse = (course: PublicCourse) => {
     setSelectedCourse(course);
     browse("course");
   };
@@ -239,10 +278,10 @@ export default function VisitorHome({ onLogin }: Props) {
       <header className="visitor-header">
         <button className="visitor-brand" onClick={() => browse("home")}>
           <span className="brand-mark">
-            <span className="oxford-glyph" aria-hidden="true" />
+            <img src="/assets/platform-logo.png" alt="Oxford Learning Platform" />
           </span>
           <span>
-            <strong>Oxford</strong>
+            <strong className="festive-wordmark">Oxford</strong>
             <small>learning platform</small>
           </span>
         </button>
@@ -331,13 +370,13 @@ export default function VisitorHome({ onLogin }: Props) {
               </div>
               <div className="visitor-proof">
                 <span>
-                  <strong>24k+</strong> طالب يتعلمون
+                  <strong>{courses.length}</strong> كورسات منشورة
                 </span>
                 <span>
-                  <strong>320</strong> مدرس متخصص
+                  <strong>{teachers.length}</strong> مدرس متاح
                 </span>
                 <span>
-                  <strong>3</strong> مسارات مفتوحة
+                  <strong>{enrolledStudents}</strong> طالب مشترك
                 </span>
               </div>
             </div>
@@ -358,11 +397,7 @@ export default function VisitorHome({ onLogin }: Props) {
               </span>
             </div>
           </section>
-          <AnnouncementCarousel
-            index={bannerIndex}
-            onChange={setBannerIndex}
-            onNavigate={browse}
-          />
+          {announcements.length > 0 && <AnnouncementCarousel index={Math.min(bannerIndex, announcements.length - 1)} items={announcements} onChange={setBannerIndex} onNavigate={browse} onVideoEnded={() => setBannerIndex(current => (current + 1) % announcements.length)} />}
           <section className="visitor-section visitor-intro">
             <div>
               <span className="eyebrow">EXPLORE WITHOUT FRICTION</span>
@@ -409,7 +444,7 @@ export default function VisitorHome({ onLogin }: Props) {
               </button>
             </div>
             <div className="visitor-course-grid">
-              {publicCourses.map(course => (
+              {courses.map(course => (
                 <CoursePreview
                   key={course.id}
                   course={course}
@@ -432,7 +467,7 @@ export default function VisitorHome({ onLogin }: Props) {
               </button>
             </div>
             <div className="teacher-grid">
-              {publicTeachers.map(teacher => (
+              {teachers.slice(0, 3).map(teacher => (
                 <TeacherCard
                   key={teacher.id}
                   teacher={teacher}
@@ -464,7 +499,7 @@ export default function VisitorHome({ onLogin }: Props) {
           description="تصفح خطط التعلم والمدرسين والمستوى قبل تسجيل الدخول."
           action={onLogin}
         >
-          {publicCourses.map(course => (
+          {courses.map(course => (
             <CoursePreview
               key={course.id}
               course={course}
@@ -473,7 +508,7 @@ export default function VisitorHome({ onLogin }: Props) {
           ))}
         </PublicListing>
       )}
-      {view === "course" && (
+      {view === "course" && selectedCourse && (
         <CourseDetailWithTeachers
           course={selectedCourse}
           onBack={() => browse("courses")}
@@ -483,12 +518,12 @@ export default function VisitorHome({ onLogin }: Props) {
       )}
       {view === "teachers" && (
         <PublicTeacherListing
-          teachers={publicTeachers}
+          teachers={teachers}
           onOpen={openTeacher}
           onLogin={onLogin}
         />
       )}
-      {view === "teacher" && (
+      {view === "teacher" && selectedTeacher && (
         <TeacherDetail
           teacher={selectedTeacher}
           onBack={() => browse(teacherBackView)}
@@ -532,8 +567,8 @@ function CoursePreview({
   course,
   onOpen,
 }: {
-  course: (typeof publicCourses)[number];
-  onOpen: (course: (typeof publicCourses)[number]) => void;
+  course: PublicCourse;
+  onOpen: (course: PublicCourse) => void;
 }) {
   return (
     <article className="visitor-course-card" onClick={() => onOpen(course)}>
@@ -596,7 +631,7 @@ function CourseDetail({
   onBack,
   onProtected,
 }: {
-  course: (typeof publicCourses)[number];
+  course: PublicCourse;
   onBack: () => void;
   onProtected: (page: string) => void;
 }) {
@@ -752,19 +787,61 @@ function PublicResource({
   );
 }
 
+function youtubeEmbedUrl(url: string) {
+  const match = url.match(/(?:youtube\.com\/(?:shorts\/|watch\?v=)|youtu\.be\/)([\w-]{11})/);
+  if (!match) return null;
+  const params = new URLSearchParams({ autoplay: "1", mute: "1", controls: "1", rel: "0", modestbranding: "1", enablejsapi: "1", origin: window.location.origin });
+  return `https://www.youtube.com/embed/${match[1]}?${params.toString()}`;
+}
+
 function AnnouncementCarousel({
   index,
+  items,
   onChange,
   onNavigate,
+  onVideoEnded,
 }: {
   index: number;
+  items: Announcement[];
   onChange: (index: number) => void;
   onNavigate: (view: View) => void;
+  onVideoEnded: () => void;
 }) {
-  const item = announcements[index];
+  const item = items[index];
+  const youtubeUrl = item.mediaType === "video" && item.mediaUrl ? youtubeEmbedUrl(item.mediaUrl) : null;
+  useEffect(() => {
+    if (!youtubeUrl) return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== document.querySelector<HTMLIFrameElement>(".announcement-media iframe")?.contentWindow) return;
+      try {
+        const message = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+        if (message?.event === "onStateChange" && message.info === 0) onVideoEnded();
+      } catch {
+        // Ignore unrelated iframe messages.
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [youtubeUrl, onVideoEnded]);
+  const [dragStart, setDragStart] = useState<number | null>(null);
+  const finishDrag = (end: number) => {
+    if (dragStart === null) return;
+    const distance = end - dragStart;
+    if (Math.abs(distance) > 45) {
+      onChange((index + (distance > 0 ? -1 : 1) + items.length) % items.length);
+    }
+    setDragStart(null);
+  };
   return (
     <section className="visitor-announcement-wrap">
-      <div className="visitor-announcement">
+      <div
+        className="visitor-announcement"
+        onTouchStart={event => setDragStart(event.touches[0].clientX)}
+        onTouchEnd={event => finishDrag(event.changedTouches[0].clientX)}
+        onMouseDown={event => setDragStart(event.clientX)}
+        onMouseUp={event => finishDrag(event.clientX)}
+        onMouseLeave={() => setDragStart(null)}
+      >
         <div className="announcement-copy">
           <span className="eyebrow">{item.kicker}</span>
           <h2>{item.title}</h2>
@@ -776,28 +853,12 @@ function AnnouncementCarousel({
             {item.cta} <ArrowLeft size={15} />
           </button>
         </div>
+        <div className="announcement-media">
+          {item.mediaType === "image" && item.mediaUrl ? <img src={item.mediaUrl} alt="" draggable={false} /> : youtubeUrl ? <iframe src={youtubeUrl} title={item.title} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen /> : item.mediaType === "video" && item.mediaUrl ? <video src={item.mediaUrl} autoPlay muted playsInline onEnded={onVideoEnded} /> : <img src="/assets/learning.png" alt="" draggable={false} />}
+        </div>
         <div className="announcement-side">
-          <span className="announcement-number">0{index + 1}</span>
-          <div className="announcement-controls">
-            <button
-              aria-label="الإعلان السابق"
-              onClick={() =>
-                onChange(
-                  (index - 1 + announcements.length) % announcements.length
-                )
-              }
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <button
-              aria-label="الإعلان التالي"
-              onClick={() => onChange((index + 1) % announcements.length)}
-            >
-              <ArrowLeft size={18} />
-            </button>
-          </div>
           <div className="announcement-dots">
-            {announcements.map((_, dot) => (
+            {items.map((_, dot) => (
               <button
                 key={dot}
                 className={dot === index ? "active" : ""}
@@ -908,7 +969,7 @@ function TeacherDetail({
       : teacher.discountKind === "amount" && teacher.discount
         ? Math.max(0, activePlan.price - Number.parseInt(teacher.discount))
         : activePlan.price;
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (
       !studentName.trim() ||
@@ -918,13 +979,13 @@ function TeacherDetail({
       toast.error("أكمل اسم الطالب ورقم الطالب ورقم ولي الأمر.");
       return;
     }
-    const governance = readGovernance();
     const planType: "شهري" | "بالحصة" | "الباب" =
       planLabel === "بالحصة"
         ? "بالحصة"
         : planLabel.startsWith("الباب") || planLabel.includes("الوحدة")
           ? "الباب"
           : "شهري";
+    const governance = readGovernance();
     const pending = buildPendingSubscription({
       courseId: teacher.courseIds[0] as "programming" | "science" | "skills",
       teacherId: teacher.id,
@@ -1123,14 +1184,14 @@ function CourseDetailWithTeachers({
   onProtected,
   onViewTeacher,
 }: {
-  course: (typeof publicCourses)[number];
+  course: PublicCourse;
   onBack: () => void;
   onProtected: (page: string) => void;
   onViewTeacher: (teacher: Teacher) => void;
 }) {
-  const courseTeachers = publicTeachers.filter(teacher =>
-    course.teacherIds.includes(teacher.id)
-  );
+  const courseTeachers = course.teachers?.length
+    ? course.teachers
+    : [];
   return (
     <section className="visitor-section visitor-detail course-detail-linked">
       <button className="visitor-back" onClick={onBack}>
@@ -1267,12 +1328,12 @@ function CourseTeacherCard({
   );
 }
 
-function CourseEnrollmentForm({
+export function CourseEnrollmentForm({
   course,
   teachers,
   onProtected,
 }: {
-  course: (typeof publicCourses)[number];
+  course: PublicCourse;
   teachers: Teacher[];
   onProtected: (page: string) => void;
 }) {
@@ -1283,7 +1344,73 @@ function CourseEnrollmentForm({
   const [studentName, setStudentName] = useState("");
   const [studentPhone, setStudentPhone] = useState("");
   const [parentPhone, setParentPhone] = useState("");
+  const [transferImage, setTransferImage] = useState("");
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [sent, setSent] = useState(false);
+  const [signedInUser, setSignedInUser] = useState<ApiUser | null>(null);
+  const [courseLessons, setCourseLessons] = useState<Array<{ id: string; title: string; unit?: string; teacherId?: string }>>([]);
+  const [selectedLessonId, setSelectedLessonId] = useState<string>("");
+
+  useEffect(() => {
+    if (!course?.id) return;
+    api<Array<{ id: string; title: string; unit?: string; teacherId?: string }>>(`/lessons?courseId=${course.id}`)
+      .then(lessons => {
+        setCourseLessons(lessons);
+      })
+      .catch(() => setCourseLessons([]));
+  }, [course?.id]);
+
+  const teacherLessons = useMemo(() => {
+    const activeTeacherObj = teachers.find(t => t.id === teacherId) || teachers[0];
+    const activeTeacherId = activeTeacherObj?.id;
+    const activeUserId = (activeTeacherObj as any)?.userId;
+
+    const matching = courseLessons.filter(l => {
+      if (!l.teacherId) return true;
+      return (
+        (activeTeacherId && l.teacherId === activeTeacherId) ||
+        (activeUserId && l.teacherId === activeUserId) ||
+        (teacherId && l.teacherId === teacherId)
+      );
+    });
+    return matching;
+  }, [courseLessons, teacherId, teachers]);
+
+  const availableUnits = useMemo(() => {
+    const unitsFromLessons = Array.from(
+      new Set(
+        teacherLessons
+          .map(l => l.unit)
+          .filter((u): u is string => Boolean(u && u.trim()))
+      )
+    );
+    if (unitsFromLessons.length > 0) {
+      return unitsFromLessons;
+    }
+    return ["الباب الأول", "الباب الثاني", "الباب الثالث", "الباب الرابع", "وحدة مراجعة شاملة"];
+  }, [teacherLessons]);
+
+  useEffect(() => {
+    if (teacherLessons.length > 0) {
+      setSelectedLessonId(teacherLessons[0].id);
+    } else {
+      setSelectedLessonId("");
+    }
+    if (availableUnits.length > 0) {
+      setUnit(availableUnits[0]);
+    }
+  }, [teacherLessons, availableUnits]);
+
+  useEffect(() => {
+    if (!getApiToken()) return;
+    void apiMe().then((user) => {
+      setSignedInUser(user);
+      setStudentName(user.name);
+      setStudentPhone(user.phone || "");
+      setParentPhone(user.parentPhone || "");
+      setGrade(user.grade || grade);
+    }).catch(() => setSignedInUser(null));
+  }, []);
   useEffect(() => {
     const handler = (event: Event) => {
       const nextTeacherId = (event as CustomEvent<string>).detail;
@@ -1320,8 +1447,14 @@ function CourseEnrollmentForm({
         ? Math.max(0, basePrice - Number.parseInt(activeTeacher.discount))
         : basePrice;
   const discountValue = Math.max(0, basePrice - finalPrice);
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!signedInUser || !getApiToken()) {
+      localStorage.setItem("oxford-return-page", "browse");
+      toast.info("يجب تسجيل الدخول أولًا لإرسال طلب الاشتراك.");
+      onProtected("browse");
+      return;
+    }
     if (
       !studentName.trim() ||
       studentPhone.length < 8 ||
@@ -1337,15 +1470,33 @@ function CourseEnrollmentForm({
         : bookingType === "بالوحدة / الباب"
           ? "الباب"
           : "شهري";
+
+    const selectedLessonObj = teacherLessons.find(l => l.id === selectedLessonId);
+    const unitValue = bookingType === "بالحصة"
+      ? (selectedLessonObj ? selectedLessonObj.title : selectedLessonId)
+      : bookingType === "بالوحدة / الباب"
+        ? unit
+        : undefined;
+
+    try {
+      await api("/enrollments", {
+        method: "POST",
+        body: JSON.stringify({ courseId: course.id, teacherId, studentId: signedInUser.id, studentName, studentPhone, parentPhone, grade, bookingType: planType, unit: unitValue, amount: finalPrice, transferImage }),
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر إرسال طلب الاشتراك");
+      return;
+    }
     governance.subscriptions.unshift(
       buildPendingSubscription({
         courseId: course.id as "programming" | "science" | "skills",
         teacherId,
         teacherName: activeTeacher?.name ?? "مدرس",
-        studentId: currentStudentId(),
+        studentId: signedInUser.id,
         studentName,
         planType,
         selectedUnit: bookingType === "بالوحدة / الباب" ? unit : undefined,
+        selectedLesson: bookingType === "بالحصة" ? (selectedLessonObj?.title || selectedLessonId) : undefined,
       })
     );
     writeGovernance(governance);
@@ -1360,6 +1511,7 @@ function CourseEnrollmentForm({
         studentName,
         studentPhone,
         parentPhone,
+        transferImage,
         finalPrice,
         createdAt: new Date().toISOString(),
       })
@@ -1437,6 +1589,20 @@ function CourseEnrollmentForm({
             </select>
           </label>
         </div>
+        <label className="transfer-upload-field">
+          صورة التحويل
+          <span className="transfer-upload">
+            <input type="file" accept="image/*" required={!transferImage} onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            setCropFile(file);
+            }} />
+            <strong>{transferImage ? "تغيير صورة التحويل" : "اختر صورة إيصال التحويل"}</strong>
+            <small>PNG أو JPG — بحد أقصى 500KB</small>
+          </span>
+          {transferImage && <img className="transfer-preview" src={transferImage} alt="معاينة صورة التحويل" />}
+        </label>
+        {cropFile && <ImageCropDialog file={cropFile} onCancel={() => setCropFile(null)} onComplete={value => { setTransferImage(value); setCropFile(null); }} />}
         {bookingType === "بالوحدة / الباب" && (
           <label>
             اختر الباب أو الوحدة
@@ -1444,11 +1610,33 @@ function CourseEnrollmentForm({
               value={unit}
               onChange={event => setUnit(event.target.value)}
             >
-              <option>الباب الأول</option>
-              <option>الباب الثاني</option>
-              <option>الباب الثالث</option>
-              <option>الباب الرابع</option>
-              <option>وحدة مراجعة شاملة</option>
+              {availableUnits.map(u => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {bookingType === "بالحصة" && (
+          <label>
+            اختر الحصة التي ترغب بالاشتراك فيها
+            <select
+              value={selectedLessonId}
+              onChange={event => {
+                setSelectedLessonId(event.target.value);
+                setSent(false);
+              }}
+            >
+              {teacherLessons.length === 0 ? (
+                <option value="">لا توجد حصص متاحة حالياً لهذا المدرس</option>
+              ) : (
+                teacherLessons.map(lessonItem => (
+                  <option key={lessonItem.id} value={lessonItem.id}>
+                    {lessonItem.title} {lessonItem.unit ? `(${lessonItem.unit})` : ""}
+                  </option>
+                ))
+              )}
             </select>
           </label>
         )}

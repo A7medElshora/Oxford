@@ -28,7 +28,7 @@ const demoStart = "2026-06-24T00:00:00.000Z";
 const demoEnd = "2026-12-31T23:59:59.000Z";
 
 const initial: GovernanceStore = {
-  subscriptions: [{ id: "subscription-demo", courseId: "programming", teacherId: "nourhan", teacherName: "نورهان عادل", studentId: "student-demo", studentName: "سلمى إبراهيم", planType: "شهري", startsAt: demoStart, endsAt: demoEnd, status: "approved", createdAt: demoStart }],
+  subscriptions: [{ id: "subscription-demo", courseId: "programming", teacherId: "nourhan", teacherName: "نورهان عادل", studentId: "student-demo", studentName: "هايدي محمد", planType: "شهري", startsAt: demoStart, endsAt: demoEnd, status: "approved", createdAt: demoStart }],
   contentApprovals: [],
 };
 

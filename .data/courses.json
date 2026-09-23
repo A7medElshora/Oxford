@@ -1,0 +1,51 @@
+[
+  {
+    "id": "programming",
+    "title": "أساسيات البرمجة",
+    "description": "ابنِ فهمًا عمليًا للتفكير البرمجي من أول خطوة.",
+    "level": "مبتدئ",
+    "duration": "6 أسابيع",
+    "image": "/assets/learning.png",
+    "teacherIds": [
+      "teacher-demo"
+    ],
+    "teacherPlans": [
+      {
+        "teacherId": "teacher-demo",
+        "monthlyPrice": 450,
+        "lessonPrice": 90,
+        "chapterPrice": 180,
+        "discountEnabled": false
+      }
+    ],
+    "lessonCount": 24,
+    "price": 450,
+    "published": true
+  },
+  {
+    "id": "science",
+    "title": "فيزياء الحركة والطاقة",
+    "description": "مراجعة واضحة للمفاهيم الأساسية مع تطبيقات يومية.",
+    "level": "متوسط",
+    "duration": "5 أسابيع",
+    "image": "/assets/learning.png",
+    "teacherIds": [],
+    "teacherPlans": [],
+    "lessonCount": 18,
+    "price": 380,
+    "published": false
+  },
+  {
+    "id": "skills",
+    "title": "مهارات حل الامتحان",
+    "description": "نظّم وقتك وابنِ عادات تعلم تستمر معك.",
+    "level": "كل المستويات",
+    "duration": "3 أسابيع",
+    "image": "/assets/learning.png",
+    "teacherIds": [],
+    "teacherPlans": [],
+    "lessonCount": 12,
+    "price": 220,
+    "published": true
+  }
+]

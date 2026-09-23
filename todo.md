@@ -13,7 +13,7 @@
 - [ ] Add functional modal/form flows for creating records and mark local changes with success feedback.
 - [x] Verify role-based navigation, logout, responsive sidebar, mobile menu, and teacher-to-student local sharing after role switch.
 - [ ] Run TypeScript/build checks and save a new checkpoint after verification.
-- [x] Replace visible Tafra brand copy with Oxford across login, shell, dashboards, footer, and metadata.
+- [x] Replace visible oxford brand copy with Oxford across login, shell, dashboards, footer, and metadata.
 - [x] Rebalance design tokens toward Oxford orange, ink black, warm white, and readable status colors.
 - [x] Update active, hover, button, chart, progress, badge, focus, and illustration accents to the orange/black system.
 - [x] Verify contrast, responsive layout, and existing role-based learning flows after the brand update.
@@ -36,4 +36,3 @@
 - [x] Add booking form with student name, student phone, parent phone, grade track, booking type, unit/chapter, and dynamic price.
 - [x] Add local booking confirmation and validation states without claiming real payment or enrollment.
 - [x] Test announcement controls, discount calculations, form validation, mobile layout, and keyboard access.
-
