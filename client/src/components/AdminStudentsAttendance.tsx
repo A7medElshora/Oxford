@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Search, Users } from "lucide-react";
 import { toast } from "sonner";
 import { api, type ApiUser } from "@/lib/api";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 type Enrollment = {
   id: string;
@@ -78,6 +79,14 @@ export default function AdminStudentsAttendance({ page }: Props) {
       ),
     [attendance, query],
   );
+
+  if (loading) {
+    return (
+      <div style={{ padding: "24px" }}>
+        <TableSkeleton rows={6} cols={4} />
+      </div>
+    );
+  }
 
   return (
     <>

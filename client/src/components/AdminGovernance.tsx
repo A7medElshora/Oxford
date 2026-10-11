@@ -3,6 +3,7 @@ import { CheckCircle2, Clock3, PauseCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { dateInput, isSubscriptionActive, readGovernance, writeGovernance, type GovernanceStore } from "@/lib/learningGovernance";
 import { api, apiGenerateAdminInviteCode, type Permission } from "@/lib/api";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 type Lesson = { id: string; approvalStatus?: "pending" | "approved" | "rejected"; published: boolean };
 type Learning = { lessons: Lesson[] };
@@ -23,17 +24,23 @@ export default function AdminGovernance({ learning, updateLearning, canManageTea
   const [ramadan, setRamadan] = useState(false);
   const [generatedAdminInviteCode, setGeneratedAdminInviteCode] = useState("");
   const [activeTab, setActiveTab] = useState<"subscriptions" | "admins" | "content">(initialTab || "subscriptions");
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
   }, [initialTab]);
 
   const loadRequests = async () => {
-    const [nextEnrollments, nextNotifications, users] = await Promise.all([api<Enrollment[]>('/enrollments'), api<Notification[]>('/notifications'), canManageTeam ? api<any[]>('/users') : Promise.resolve([])]);
-    setEnrollments(nextEnrollments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    setNotifications(nextNotifications);
-    setPendingUsers(users.filter((u) => (u.role === 'admin' || u.role === 'teacher') && u.status === 'pending'));
-    setTeamUsers(users.filter((u): u is TeamUser => u.role === 'admin'));
+    setLoadingData(true);
+    try {
+      const [nextEnrollments, nextNotifications, users] = await Promise.all([api<Enrollment[]>('/enrollments'), api<Notification[]>('/notifications'), canManageTeam ? api<any[]>('/users') : Promise.resolve([])]);
+      setEnrollments(nextEnrollments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setNotifications(nextNotifications);
+      setPendingUsers(users.filter((u) => (u.role === 'admin' || u.role === 'teacher') && u.status === 'pending'));
+      setTeamUsers(users.filter((u): u is TeamUser => u.role === 'admin'));
+    } finally {
+      setLoadingData(false);
+    }
   };
   useEffect(() => { void loadRequests().catch((error) => toast.error(error instanceof Error ? error.message : "تعذر تحميل الإشعارات وطلبات الاشتراك")); }, []);
   useEffect(() => { 
@@ -145,6 +152,9 @@ export default function AdminGovernance({ learning, updateLearning, canManageTea
             </div>
           </div>
           <div className="table-scroll">
+            {loadingData ? (
+              <TableSkeleton rows={5} cols={7} />
+            ) : (
             <table style={{ minWidth: "900px" }}>
               <thead>
                 <tr>
@@ -202,7 +212,8 @@ export default function AdminGovernance({ learning, updateLearning, canManageTea
                 ))}
               </tbody>
             </table>
-            {enrollments.length === 0 && <div style={{ padding: "30px", textAlign: "center", color: "var(--ink-muted)" }}>لا توجد طلبات اشتراك حالياً.</div>}
+            )}
+            {!loadingData && enrollments.length === 0 && <div style={{ padding: "30px", textAlign: "center", color: "var(--ink-muted)" }}>لا توجد طلبات اشتراك حالياً.</div>}
           </div>
         </section>
       )}
@@ -216,6 +227,9 @@ export default function AdminGovernance({ learning, updateLearning, canManageTea
             </div>
           </div>
           <div className="table-scroll">
+            {loadingData ? (
+              <TableSkeleton rows={4} cols={4} />
+            ) : (
             <table style={{ minWidth: "700px" }}>
               <thead>
                 <tr>
@@ -249,7 +263,8 @@ export default function AdminGovernance({ learning, updateLearning, canManageTea
                 ))}
               </tbody>
             </table>
-            {pendingUsers.length === 0 && <div style={{ padding: "30px", textAlign: "center", color: "var(--ink-muted)" }}>لا توجد طلبات انضمام للمشرفين حاليًا.</div>}
+            )}
+            {!loadingData && pendingUsers.length === 0 && <div style={{ padding: "30px", textAlign: "center", color: "var(--ink-muted)" }}>لا توجد طلبات انضمام للمشرفين حاليًا.</div>}
           </div>
 
           <div style={{ marginTop: "28px", borderTop: "1px solid var(--border)", paddingTop: "20px" }}>

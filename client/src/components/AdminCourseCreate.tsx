@@ -1,32 +1,173 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
-import { ArrowRight, ImagePlus, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowRight, ImagePlus, Plus, Save, Trash2, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { compressImage } from "@/lib/image";
 import ImageCropDialog from "@/components/ImageCropDialog";
 
 type Teacher = { id: string; name: string; subject: string };
 type Plan = { teacherId: string; monthlyPrice: string; lessonPrice: string; chapterPrice: string; discountEnabled: boolean; discountKind: "percent" | "amount"; discountValue: string };
+type PaymentMethod = { id: string; name: string; type: string; active: boolean };
 
 type Props = { onBack: () => void };
 const grades = ["الأول الإعدادي", "الثاني الإعدادي", "الثالث الإعدادي", "الأول الثانوي", "الثاني الثانوي", "الثالث الثانوي"];
 
 export default function AdminCourseCreate({ onBack }: Props) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [selectedPaymentMethodIds, setSelectedPaymentMethodIds] = useState<string[]>([]);
   const [image, setImage] = useState("");
   const [form, setForm] = useState({ id: "", title: "", description: "", level: "كل المستويات", duration: "", price: "", targetGrades: [] as string[] });
   const [plans, setPlans] = useState<Plan[]>([]);
   const [saving, setSaving] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
 
-  useEffect(() => { void api<Teacher[]>("/teachers").then(setTeachers).catch((error) => toast.error(error instanceof Error ? error.message : "تعذر تحميل المدرسين")); }, []);
+  useEffect(() => {
+    void api<Teacher[]>("/teachers").then(setTeachers).catch((error) => toast.error(error instanceof Error ? error.message : "تعذر تحميل المدرسين"));
+    void api<PaymentMethod[]>("/payment-methods").then(data => setPaymentMethods(data.filter(m => m.active))).catch(() => {});
+  }, []);
+
   const updatePlan = (index: number, patch: Partial<Plan>) => setPlans((current) => current.map((plan, itemIndex) => itemIndex === index ? { ...plan, ...patch } : plan));
   const addPlan = () => { const available = teachers.find((teacher) => !plans.some((plan) => plan.teacherId === teacher.id)); if (!available) return toast.info("تم اختيار كل المدرسين المتاحين"); setPlans((current) => [...current, { teacherId: available.id, monthlyPrice: "", lessonPrice: "", chapterPrice: "", discountEnabled: false, discountKind: "percent", discountValue: "" }]); };
   const removePlan = (index: number) => setPlans((current) => current.filter((_plan, itemIndex) => itemIndex !== index));
   const chooseImage = (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (file) setCropFile(file); };
   const toggleGrade = (grade: string) => setForm(current => ({ ...current, targetGrades: current.targetGrades.includes(grade) ? current.targetGrades.filter(item => item !== grade) : [...current.targetGrades, grade] }));
-  const submit = async (event: FormEvent) => { event.preventDefault(); if (!plans.length) return toast.error("اختر مدرسًا واحدًا على الأقل"); setSaving(true); try { await api("/courses", { method: "POST", body: JSON.stringify({ ...form, published: true, price: Number(form.price) || 0, image, teacherPlans: plans.map((plan) => ({ teacherId: plan.teacherId, monthlyPrice: Number(plan.monthlyPrice) || 0, lessonPrice: Number(plan.lessonPrice) || 0, chapterPrice: Number(plan.chapterPrice) || 0, discountEnabled: plan.discountEnabled, discountKind: plan.discountEnabled ? plan.discountKind : undefined, discountValue: plan.discountEnabled ? Number(plan.discountValue) || 0 : undefined })) }) }); toast.success("تم إنشاء الكورس وإرساله إلى الـ API"); onBack(); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر إنشاء الكورس"); } finally { setSaving(false); } };
-  return <><div className="admin-course-create"><div className="page-header"><div><span className="eyebrow">ADMIN / NEW COURSE</span><h1>إضافة كورس جديد</h1><p>أدخل تفاصيل الكورس، ثم اربط المدرسين وخطط الأسعار والخصومات الخاصة بكل مدرس.</p></div><button className="secondary-btn" type="button" onClick={onBack}><ArrowRight size={16} /> العودة للكورسات</button></div><form className="course-editor" onSubmit={submit}><section className="paper-card editor-main"><div className="form-heading"><span className="eyebrow">COURSE DETAILS</span><h2>بيانات الكورس</h2></div><div className="form-two-col"><Field label="معرّف الكورس"><input required pattern="[a-z0-9-]+" value={form.id} onChange={(event) => setForm({ ...form, id: event.target.value })} placeholder="physics-basics" /></Field><Field label="اسم الكورس"><input required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></Field></div><Field label="وصف الكورس"><textarea required value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></Field><div className="form-two-col"><Field label="المستوى"><input value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value })} /></Field><Field label="المدة"><input value={form.duration} onChange={(event) => setForm({ ...form, duration: event.target.value })} placeholder="8 أسابيع" /></Field></div><Field label="السعر الأساسي"><input type="number" min="0" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} /></Field><label className="image-upload"><span>صورة الكورس</span><input type="file" accept="image/*" onChange={chooseImage} /><div className="image-upload-preview">{image ? <img src={image} alt="معاينة صورة الكورس" /> : <><ImagePlus size={26} /><small>اختر صورة من جهازك</small></>}</div></label></section><section className="paper-card editor-plans"><div className="card-title"><div><span className="eyebrow">TEACHERS / PRICING</span><h2>المدرسون والأسعار</h2></div><button className="secondary-btn" type="button" onClick={addPlan}><Plus size={15} /> إضافة مدرس</button></div>{plans.length === 0 && <p className="muted">أضف مدرسًا لتحديد أسعاره وخطة الخصم الخاصة به.</p>}{plans.map((plan, index) => <div className="teacher-plan-editor" key={`${plan.teacherId}-${index}`}><div className="plan-header"><select value={plan.teacherId} onChange={(event) => updatePlan(index, { teacherId: event.target.value })}>{teachers.filter((teacher) => !plans.some((other, otherIndex) => otherIndex !== index && other.teacherId === teacher.id)).map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name} · {teacher.subject}</option>)}</select><button className="icon-btn" type="button" title="حذف المدرس" onClick={() => removePlan(index)}><Trash2 size={16} /></button></div><div className="form-three-col"><Field label="شهري"><input required type="number" min="0" value={plan.monthlyPrice} onChange={(event) => updatePlan(index, { monthlyPrice: event.target.value })} /></Field><Field label="بالحصة"><input required type="number" min="0" value={plan.lessonPrice} onChange={(event) => updatePlan(index, { lessonPrice: event.target.value })} /></Field><Field label="بالباب"><input required type="number" min="0" value={plan.chapterPrice} onChange={(event) => updatePlan(index, { chapterPrice: event.target.value })} /></Field></div><label className="switch-row"><input type="checkbox" checked={plan.discountEnabled} onChange={(event) => updatePlan(index, { discountEnabled: event.target.checked })} /> يوجد خصم لهذا المدرس</label>{plan.discountEnabled && <div className="form-two-col"><Field label="نوع الخصم"><select value={plan.discountKind} onChange={(event) => updatePlan(index, { discountKind: event.target.value as Plan["discountKind"] })}><option value="percent">نسبة مئوية</option><option value="amount">مبلغ ثابت</option></select></Field><Field label="قيمة الخصم"><input required type="number" min="0" value={plan.discountValue} onChange={(event) => updatePlan(index, { discountValue: event.target.value })} /></Field></div>}</div>)}</section><div className="editor-actions"><button className="primary-btn" type="submit" disabled={saving}><Save size={16} />{saving ? "جارٍ الحفظ..." : "حفظ ونشر كمسودة"}</button></div>  </form></div>{cropFile && <ImageCropDialog file={cropFile} onCancel={() => setCropFile(null)} onComplete={value => { setImage(value); setCropFile(null); }} />}</>;
+  const togglePaymentMethod = (id: string) => setSelectedPaymentMethodIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!plans.length) return toast.error("اختر مدرسًا واحدًا على الأقل");
+    setSaving(true);
+    try {
+      const course = await api<{ id: string }>("/courses", { method: "POST", body: JSON.stringify({ ...form, published: true, price: Number(form.price) || 0, image, teacherPlans: plans.map((plan) => ({ teacherId: plan.teacherId, monthlyPrice: Number(plan.monthlyPrice) || 0, lessonPrice: Number(plan.lessonPrice) || 0, chapterPrice: Number(plan.chapterPrice) || 0, discountEnabled: plan.discountEnabled, discountKind: plan.discountEnabled ? plan.discountKind : undefined, discountValue: plan.discountEnabled ? Number(plan.discountValue) || 0 : undefined })), paymentMethodIds: selectedPaymentMethodIds }) });
+      // Link payment methods
+      if (selectedPaymentMethodIds.length > 0) {
+        await api(`/courses/${course.id}/payment-methods`, { method: "PUT", body: JSON.stringify({ paymentMethodIds: selectedPaymentMethodIds }) }).catch(() => {});
+      }
+      toast.success("تم إنشاء الكورس وإرساله إلى الـ API");
+      onBack();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر إنشاء الكورس");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="admin-course-create">
+        <div className="page-header">
+          <div>
+            <span className="eyebrow">ADMIN / NEW COURSE</span>
+            <h1>إضافة كورس جديد</h1>
+            <p>أدخل تفاصيل الكورس، ثم اربط المدرسين وخطط الأسعار وطرق الدفع.</p>
+          </div>
+          <button className="secondary-btn" type="button" onClick={onBack}><ArrowRight size={16} /> العودة للكورسات</button>
+        </div>
+        <form className="course-editor" onSubmit={submit}>
+          <section className="paper-card editor-main">
+            <div className="form-heading"><span className="eyebrow">COURSE DETAILS</span><h2>بيانات الكورس</h2></div>
+            <div className="form-two-col">
+              <Field label="معرّف الكورس"><input required pattern="[a-z0-9-]+" value={form.id} onChange={(event) => setForm({ ...form, id: event.target.value })} placeholder="physics-basics" /></Field>
+              <Field label="اسم الكورس"><input required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></Field>
+            </div>
+            <Field label="وصف الكورس"><textarea required value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></Field>
+            <div className="form-two-col">
+              <Field label="المستوى"><input value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value })} /></Field>
+              <Field label="المدة"><input value={form.duration} onChange={(event) => setForm({ ...form, duration: event.target.value })} placeholder="8 أسابيع" /></Field>
+            </div>
+            <Field label="السعر الأساسي"><input type="number" min="0" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} /></Field>
+            <label className="image-upload">
+              <span>صورة الكورس</span>
+              <input type="file" accept="image/*" onChange={chooseImage} />
+              <div className="image-upload-preview">{image ? <img src={image} alt="معاينة صورة الكورس" /> : <><ImagePlus size={26} /><small>اختر صورة من جهازك</small></>}</div>
+            </label>
+          </section>
+
+          {/* Payment Methods Section */}
+          <section className="paper-card editor-plans">
+            <div className="card-title">
+              <div><span className="eyebrow">PAYMENT METHODS</span><h2>طرق الدفع المتاحة لهذا الكورس</h2></div>
+            </div>
+            {paymentMethods.length === 0 ? (
+              <p className="muted">لا توجد طرق دفع مضافة بعد. أضف طرق دفع من قسم "طرق الدفع" في القائمة أولاً.</p>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                {paymentMethods.map(pm => {
+                  const selected = selectedPaymentMethodIds.includes(pm.id);
+                  return (
+                    <button
+                      key={pm.id}
+                      type="button"
+                      onClick={() => togglePaymentMethod(pm.id)}
+                      style={{
+                        padding: "7px 16px", borderRadius: "24px", border: `2px solid ${selected ? "var(--primary)" : "var(--border)"}`,
+                        background: selected ? "var(--primary)" : "var(--surface)", color: selected ? "#fff" : "var(--ink)",
+                        cursor: "pointer", fontWeight: 600, fontSize: "13px", display: "flex", alignItems: "center", gap: "6px", transition: "all 0.18s"
+                      }}
+                    >
+                      <CreditCard size={13} />
+                      {pm.name}
+                      {selected && <span style={{ fontSize: "11px" }}>✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {selectedPaymentMethodIds.length > 0 && (
+              <p className="muted" style={{ marginTop: "10px", fontSize: "12px" }}>
+                تم اختيار {selectedPaymentMethodIds.length} طريقة دفع — سيُظهرها النظام للطالب في فورم الاشتراك.
+              </p>
+            )}
+          </section>
+
+          {/* Teachers / Pricing */}
+          <section className="paper-card editor-plans">
+            <div className="card-title">
+              <div><span className="eyebrow">TEACHERS / PRICING</span><h2>المدرسون والأسعار</h2></div>
+              <button className="secondary-btn" type="button" onClick={addPlan}><Plus size={15} /> إضافة مدرس</button>
+            </div>
+            {plans.length === 0 && <p className="muted">أضف مدرسًا لتحديد أسعاره وخطة الخصم الخاصة به.</p>}
+            {plans.map((plan, index) => (
+              <div className="teacher-plan-editor" key={`${plan.teacherId}-${index}`}>
+                <div className="plan-header">
+                  <select value={plan.teacherId} onChange={(event) => updatePlan(index, { teacherId: event.target.value })}>
+                    {teachers.filter((teacher) => !plans.some((other, otherIndex) => otherIndex !== index && other.teacherId === teacher.id)).map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>{teacher.name} · {teacher.subject}</option>
+                    ))}
+                  </select>
+                  <button className="icon-btn" type="button" title="حذف المدرس" onClick={() => removePlan(index)}><Trash2 size={16} /></button>
+                </div>
+                <div className="form-three-col">
+                  <Field label="شهري"><input required type="number" min="0" value={plan.monthlyPrice} onChange={(event) => updatePlan(index, { monthlyPrice: event.target.value })} /></Field>
+                  <Field label="بالحصة"><input required type="number" min="0" value={plan.lessonPrice} onChange={(event) => updatePlan(index, { lessonPrice: event.target.value })} /></Field>
+                  <Field label="بالباب"><input required type="number" min="0" value={plan.chapterPrice} onChange={(event) => updatePlan(index, { chapterPrice: event.target.value })} /></Field>
+                </div>
+                <label className="switch-row">
+                  <input type="checkbox" checked={plan.discountEnabled} onChange={(event) => updatePlan(index, { discountEnabled: event.target.checked })} /> يوجد خصم لهذا المدرس
+                </label>
+                {plan.discountEnabled && (
+                  <div className="form-two-col">
+                    <Field label="نوع الخصم">
+                      <select value={plan.discountKind} onChange={(event) => updatePlan(index, { discountKind: event.target.value as Plan["discountKind"] })}>
+                        <option value="percent">نسبة مئوية</option>
+                        <option value="amount">مبلغ ثابت</option>
+                      </select>
+                    </Field>
+                    <Field label="قيمة الخصم"><input required type="number" min="0" value={plan.discountValue} onChange={(event) => updatePlan(index, { discountValue: event.target.value })} /></Field>
+                  </div>
+                )}
+              </div>
+            ))}
+          </section>
+
+          <div className="editor-actions">
+            <button className="primary-btn" type="submit" disabled={saving}><Save size={16} />{saving ? "جارٍ الحفظ..." : "حفظ ونشر كمسودة"}</button>
+          </div>
+        </form>
+      </div>
+      {cropFile && <ImageCropDialog file={cropFile} onCancel={() => setCropFile(null)} onComplete={value => { setImage(value); setCropFile(null); }} />}
+    </>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="form-field"><span>{label}</span>{children}</label>; }

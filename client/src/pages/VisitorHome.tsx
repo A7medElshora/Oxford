@@ -1,16 +1,18 @@
 /* Oxford Learning Platform: public visitor experience with orange signals, ink-black authority, warm paper, and RTL-first navigation. */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import {
   ArrowLeft,
   ArrowUpLeft,
   BookOpen,
   CalendarDays,
+  Camera,
   CheckCircle2,
   ChevronLeft,
   Clock3,
   FileText,
   GraduationCap,
+  Image as ImageIcon,
   LockKeyhole,
   Menu,
   PlayCircle,
@@ -1346,10 +1348,17 @@ export function CourseEnrollmentForm({
   const [parentPhone, setParentPhone] = useState("");
   const [transferImage, setTransferImage] = useState("");
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [sent, setSent] = useState(false);
   const [signedInUser, setSignedInUser] = useState<ApiUser | null>(null);
   const [courseLessons, setCourseLessons] = useState<Array<{ id: string; title: string; unit?: string; teacherId?: string }>>([]);
   const [selectedLessonId, setSelectedLessonId] = useState<string>("");
+  // Payment method state
+  type CoursePaymentMethod = { id: string; name: string; type: string; walletNumber?: string; paymentLink?: string; qrCodeUrl?: string; instructions?: string; active: boolean };
+  const [coursePaymentMethods, setCoursePaymentMethods] = useState<CoursePaymentMethod[]>([]);
+  const [paymentMethodId, setPaymentMethodId] = useState<string>("");
+  const [senderNumber, setSenderNumber] = useState("");
 
   useEffect(() => {
     if (!course?.id) return;
@@ -1358,6 +1367,14 @@ export function CourseEnrollmentForm({
         setCourseLessons(lessons);
       })
       .catch(() => setCourseLessons([]));
+    // Fetch payment methods for this course
+    api<Array<{ id: string; name: string; type: string; walletNumber?: string; paymentLink?: string; qrCodeUrl?: string; instructions?: string; active: boolean }>>(`/courses/${course.id}/payment-methods`)
+      .then(methods => {
+        const active = methods.filter(m => m.active);
+        setCoursePaymentMethods(active);
+        if (active.length > 0) setPaymentMethodId(active[0].id);
+      })
+      .catch(() => setCoursePaymentMethods([]));
   }, [course?.id]);
 
   const teacherLessons = useMemo(() => {
@@ -1478,10 +1495,11 @@ export function CourseEnrollmentForm({
         ? unit
         : undefined;
 
+    const selectedPaymentMethod = coursePaymentMethods.find(m => m.id === paymentMethodId);
     try {
       await api("/enrollments", {
         method: "POST",
-        body: JSON.stringify({ courseId: course.id, teacherId, studentId: signedInUser.id, studentName, studentPhone, parentPhone, grade, bookingType: planType, unit: unitValue, amount: finalPrice, transferImage }),
+        body: JSON.stringify({ courseId: course.id, teacherId, studentId: signedInUser.id, studentName, studentPhone, parentPhone, grade, bookingType: planType, unit: unitValue, amount: finalPrice, transferImage, paymentMethodId: selectedPaymentMethod?.id || undefined, paymentMethodName: selectedPaymentMethod?.name || undefined, senderNumber: senderNumber.trim() || undefined }),
       });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "تعذر إرسال طلب الاشتراك");
@@ -1589,20 +1607,153 @@ export function CourseEnrollmentForm({
             </select>
           </label>
         </div>
-        <label className="transfer-upload-field">
-          صورة التحويل
-          <span className="transfer-upload">
-            <input type="file" accept="image/*" required={!transferImage} onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            setCropFile(file);
-            }} />
-            <strong>{transferImage ? "تغيير صورة التحويل" : "اختر صورة إيصال التحويل"}</strong>
-            <small>PNG أو JPG — بحد أقصى 500KB</small>
-          </span>
-          {transferImage && <img className="transfer-preview" src={transferImage} alt="معاينة صورة التحويل" />}
-        </label>
+        <div className="transfer-upload-field" style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px", marginBottom: "14px" }}>
+          <span style={{ fontWeight: 700, fontSize: "13.5px" }}>صورة إيصال التحويل <span style={{ color: "#ef4444" }}>*</span></span>
+          
+          {/* Hidden File Inputs: Camera & Gallery */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: "none" }}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              setCropFile(file);
+            }}
+          />
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              setCropFile(file);
+            }}
+          />
+
+          {/* Dual Choice Buttons */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                padding: "12px 14px",
+                borderRadius: "10px",
+                border: "1.5px solid var(--primary)",
+                background: "rgba(244,123,32,0.1)",
+                color: "var(--primary)",
+                fontWeight: 700,
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "all 0.18s ease"
+              }}
+            >
+              <Camera size={18} />
+              التقاط بالكاميرا
+            </button>
+
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                padding: "12px 14px",
+                borderRadius: "10px",
+                border: "1.5px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--ink)",
+                fontWeight: 700,
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "all 0.18s ease"
+              }}
+            >
+              <ImageIcon size={18} />
+              من المعرض / الصور
+            </button>
+          </div>
+
+          <small className="muted" style={{ fontSize: "11.5px" }}>
+            {transferImage ? "تم اختيار صورة الإيصال — يمكنك إعادة التقاطها بالكاميرا أو اختيار صورة أخرى" : "اختر فتح الكاميرا مباشرة لالتقاط صورة الإيصال أو رفعها من المعرض"}
+          </small>
+
+          {transferImage && (
+            <div style={{ marginTop: "6px" }}>
+              <img className="transfer-preview" src={transferImage} alt="معاينة صورة التحويل" style={{ maxHeight: "150px", borderRadius: "10px", border: "1px solid var(--border)", objectFit: "contain" }} />
+            </div>
+          )}
+        </div>
         {cropFile && <ImageCropDialog file={cropFile} onCancel={() => setCropFile(null)} onComplete={value => { setTransferImage(value); setCropFile(null); }} />}
+
+        {/* Payment Method */}
+        {coursePaymentMethods.length > 0 && (() => {
+          const selectedPm = coursePaymentMethods.find(m => m.id === paymentMethodId);
+          return (
+            <>
+              <label>
+                وسيلة الدفع
+                <select
+                  value={paymentMethodId}
+                  onChange={e => { setPaymentMethodId(e.target.value); setSent(false); }}
+                >
+                  {coursePaymentMethods.map(pm => (
+                    <option key={pm.id} value={pm.id}>{pm.name}</option>
+                  ))}
+                </select>
+              </label>
+              {selectedPm && (
+                <div style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: "12px", padding: "14px 16px", fontSize: "13px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <strong style={{ fontSize: "13px" }}>تفاصيل الدفع عبر {selectedPm.name}</strong>
+                  {selectedPm.walletNumber && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ opacity: 0.6, fontSize: "12px" }}>رقم المحفظة:</span>
+                      <span dir="ltr" style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "15px", letterSpacing: "1px" }}>{selectedPm.walletNumber}</span>
+                      <button type="button" style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer" }} onClick={() => { void navigator.clipboard.writeText(selectedPm.walletNumber!); toast.success("تم نسخ الرقم"); }}>نسخ</button>
+                    </div>
+                  )}
+                  {selectedPm.paymentLink && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ opacity: 0.6, fontSize: "12px" }}>رابط الدفع:</span>
+                      <a href={selectedPm.paymentLink} target="_blank" rel="noreferrer" style={{ color: "var(--primary)", fontWeight: 600, wordBreak: "break-all", fontSize: "12px" }}>{selectedPm.paymentLink}</a>
+                    </div>
+                  )}
+                  {selectedPm.qrCodeUrl && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <span style={{ opacity: 0.6, fontSize: "12px" }}>باركود الدفع:</span>
+                      <img src={selectedPm.qrCodeUrl} alt="QR Code" style={{ width: 120, height: 120, objectFit: "contain", borderRadius: "8px", border: "1px solid var(--border)" }} />
+                    </div>
+                  )}
+                  {selectedPm.instructions && (
+                    <div style={{ color: "var(--ink-muted)", fontSize: "12px", lineHeight: 1.6 }}>
+                      <span style={{ fontWeight: 700 }}>ملاحظة: </span>{selectedPm.instructions}
+                    </div>
+                  )}
+                </div>
+              )}
+              <label>
+                رقم المحفظة المرسل منها (اختياري)
+                <input
+                  value={senderNumber}
+                  onChange={e => setSenderNumber(e.target.value.replace(/\D/g, ""))}
+                  inputMode="tel"
+                  placeholder="01xxxxxxxxx"
+                  dir="ltr"
+                />
+              </label>
+            </>
+          );
+        })()}
         {bookingType === "بالوحدة / الباب" && (
           <label>
             اختر الباب أو الوحدة

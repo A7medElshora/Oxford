@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { compressImage } from "@/lib/image";
 import ImageCropDialog from "@/components/ImageCropDialog";
 
-const demo = { student: "student@demo.com", admin: "admin@demo.com", teacher: "teacher@demo.com" };
 const roleLabels: Record<Role, string> = { student: "طالب", teacher: "مدرس", admin: "أدمن" };
 const grades = ["الأول الإعدادي", "الثاني الإعدادي", "الثالث الإعدادي", "الأول الثانوي", "الثاني الثانوي", "الثالث الثانوي"];
 
@@ -49,7 +48,14 @@ export default function Login({ onLogin }: { onLogin: (user: ApiUser) => void })
   const [cropFile, setCropFile] = useState<File | null>(null);
 
   const resetRegistration = (nextRole: Role) => { setRole(nextRole); setTeacherGrades([]); setAvatar(""); };
-  const readAvatar = async (file?: File) => { if (file) setCropFile(file); };
+  const readAvatar = async (file?: File) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("حجم الصورة كبير جداً، يرجى اختيار صورة أصغر (الحد الأقصى 5 ميجابايت)");
+      return;
+    }
+    setCropFile(file);
+  };
   const toggleTeacherGrade = (item: string) => setTeacherGrades(current => current.includes(item) ? current.filter(value => value !== item) : [...current, item]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -61,6 +67,9 @@ export default function Login({ onLogin }: { onLogin: (user: ApiUser) => void })
         onLogin(result.user);
         toast.success("تم تسجيل الدخول بنجاح");
       } else {
+        if (avatar.length > 700_000) {
+          throw new Error("حجم الصورة كبير جداً، يرجى اختيار صورة أصغر");
+        }
         const payload = { name, email: identifier, password, role, phone: role === "student" ? phone : undefined, parentPhone: role === "student" ? parentPhone : undefined, grade: role === "student" ? grade : undefined, subject: role === "teacher" ? subject : undefined, grades: role === "teacher" ? teacherGrades : undefined, avatar: avatar || undefined, adminInviteCode: role === "admin" ? adminInviteCode : undefined };
         const result = await apiRegister(payload);
         if (result.token) {
@@ -99,16 +108,15 @@ export default function Login({ onLogin }: { onLogin: (user: ApiUser) => void })
               {!isLogin && role === "student" && <div className="register-fields"><label>رقم الهاتف<input type="tel" value={phone} onChange={e => setPhone(e.target.value)} required /></label><label>رقم ولي الأمر<input type="tel" value={parentPhone} onChange={e => setParentPhone(e.target.value)} required /></label><label>الصف الدراسي<select value={grade} onChange={e => setGrade(e.target.value)}>{grades.map(item => <option key={item}>{item}</option>)}</select></label></div>}
               {!isLogin && role === "teacher" && <div className="register-fields"><label>المادة التي تدرسها<input value={subject} onChange={e => setSubject(e.target.value)} required placeholder="مثل: الرياضيات" /></label><fieldset><legend>الصفوف الدراسية</legend><div className="grade-checks">{grades.map(item => <label key={item}><input type="checkbox" checked={teacherGrades.includes(item)} onChange={() => toggleTeacherGrade(item)} />{item}</label>)}</div></fieldset></div>}
               {!isLogin && role === "admin" && <label>كود دعوة الأدمن<input value={adminInviteCode} onChange={e => setAdminInviteCode(e.target.value)} required placeholder="يقدمه الأدمن الرئيسي" /></label>}
-              {!isLogin && <label className="avatar-upload"><span>صورة شخصية <small>(اختياري)</small></span><input type="file" accept="image/*" onChange={e => { void readAvatar(e.target.files?.[0]); }} /><span className="upload-hint"><Upload size={15} /> {avatar ? "تم اختيار الصورة" : "اختر صورة"}</span></label>}
+              {!isLogin && <label className="avatar-upload"><span>صورة شخصية <small>(اختياري - الحد الأقصى 5 ميجابايت)</small></span><input type="file" accept="image/*" onChange={e => { void readAvatar(e.target.files?.[0]); }} /><span className="upload-hint"><Upload size={15} /> {avatar ? "تم اختيار الصورة" : "اختر صورة"}</span></label>}
               <label>{isLogin ? "البريد الإلكتروني أو رقم الهاتف" : "البريد الإلكتروني"}<input type={isLogin ? "text" : "email"} value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder={isLogin ? "student@demo.com أو 01012345678" : "name@example.com"} required /></label>
               <label>كلمة المرور<div className="password-field"><input type={show ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} minLength={!isLogin ? 6 : undefined} required /><button type="button" onClick={() => setShow(!show)} aria-label="إظهار كلمة المرور">{show ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>
               {isLogin && <div className="form-row"><label className="check"><input type="checkbox" defaultChecked /> تذكرني</label><button type="button" className="text-button" onClick={() => toast.info("سيتم تفعيل استعادة كلمة المرور مع الـBackend")}>نسيت كلمة المرور؟</button></div>}
               <button className="primary-btn wide" disabled={loading}>{loading ? "جارٍ التنفيذ..." : isLogin ? "تسجيل الدخول" : "إنشاء الحساب"}<ArrowLeft size={17} /></button>
             </form>
-            {isLogin && <div className="quick-login"><div className="quick-title"><span>تجربة سريعة</span><i /></div><div className="quick-grid">{Object.entries(demo).map(([key, value]) => <button type="button" key={key} onClick={() => { setIdentifier(value); setPassword("123456"); toast.info(`تم تجهيز حساب ${roleLabels[key as Role]}`); }}><span className={`role-dot ${key}`} />{roleLabels[key as Role]}</button>)}</div></div>}
             <p className="login-note"><LockKeyhole size={14} /> بياناتك محمية ولا يتم عرض كلمة المرور.</p>
           </motion.div>
         </AnimatePresence>
       </div></div></section>
-  </main>{cropFile && <ImageCropDialog file={cropFile} onCancel={() => setCropFile(null)} onComplete={async value => { setCropFile(null); try { const response = await fetch(value); const cropped = new File([await response.blob()], cropFile.name, { type: "image/jpeg" }); setAvatar(await compressImage(cropped, { maxBytes: 500_000, maxDimension: 1600 })); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تجهيز الصورة"); } }} />}</>;
+  </main>{cropFile && <ImageCropDialog file={cropFile} onCancel={() => setCropFile(null)} onComplete={async value => { setCropFile(null); try { const response = await fetch(value); const cropped = new File([await response.blob()], cropFile.name, { type: "image/jpeg" }); setAvatar(await compressImage(cropped, { maxBytes: 110_000, maxDimension: 512 })); } catch (error) { toast.error("حجم الصورة كبير جداً، يرجى اختيار صورة أصغر"); } }} />}</>;
 }

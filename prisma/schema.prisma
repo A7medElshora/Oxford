@@ -169,6 +169,7 @@ model Course {
   assignments    Assignment[]
   cartItems      CartItem[]
   calendarEvents CalendarEvent[]
+  paymentMethods CoursePaymentMethod[]
 
   @@index([published])
 }
@@ -303,17 +304,48 @@ model Enrollment {
   unit                 String?
   amount               Decimal          @db.Decimal(12, 2)
   transferImageUrl     String?
+  paymentMethodId      String?          @db.Uuid
+  paymentMethodName    String?
+  senderNumber         String?
+  paymentDetailsSnapshot Json?
   status               EnrollmentStatus @default(PENDING)
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
   student              User             @relation("EnrollmentStudent", fields: [studentId], references: [id], onDelete: Restrict)
   course               Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
   teacher              User             @relation("EnrollmentTeacher", fields: [teacherId], references: [id], onDelete: Restrict)
+  paymentMethod        PaymentMethod?   @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
   notifications        Notification[]
 
   @@index([studentId, status])
   @@index([courseId, status])
   @@index([teacherId])
+  @@index([paymentMethodId])
+}
+
+model PaymentMethod {
+  id           String                @id @default(uuid()) @db.Uuid
+  name         String
+  type         String                @default("VODAFONE_CASH")
+  walletNumber String?
+  paymentLink  String?
+  qrCodeUrl    String?
+  instructions String?
+  active       Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  courses      CoursePaymentMethod[]
+  enrollments  Enrollment[]
+}
+
+model CoursePaymentMethod {
+  courseId        String
+  paymentMethodId String        @db.Uuid
+  course          Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, paymentMethodId])
+  @@index([paymentMethodId])
 }
 
 model Notification {

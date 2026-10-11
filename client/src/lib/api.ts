@@ -28,7 +28,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!response.ok) {
     const details = payload.error?.details as { fieldErrors?: Record<string, string[]>; formErrors?: string[] } | undefined;
     const fields = details?.fieldErrors ? Object.values(details.fieldErrors).flat().join("، ") : "";
-    throw new Error([payload.error?.message, fields].filter(Boolean).join(": ") || "تعذر الاتصال بالخادم");
+    let rawMessage = payload.error?.message;
+    if (rawMessage === "Invalid request body") rawMessage = undefined;
+    if (rawMessage === "Authentication service is unavailable") rawMessage = "تعذر التسجيل حالياً، يرجى التأكد من اختيار صورة أصغر أو المحاولة لاحقاً";
+    const errorMessage = [rawMessage, fields].filter(Boolean).join(": ") || "تعذر الاتصال بالخادم";
+    throw new Error(errorMessage);
   }
   return payload.data as T;
 }

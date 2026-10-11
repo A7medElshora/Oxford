@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { api, type ApiUser } from "@/lib/api";
 import { readGovernance, writeGovernance } from "@/lib/learningGovernance";
 import { CourseEnrollmentForm } from "@/pages/VisitorHome";
+import { CardSkeleton } from "@/components/ui/skeleton";
 
 type Lesson = {
   id: string;
@@ -225,6 +226,7 @@ export default function CourseDetailContent({ courseId, user, onNavigate }: Prop
   const [lessons, setLessons]     = useState<Lesson[]>([]);
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [watchedLessons, setWatchedLessons] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
 
   const cancelExpiredPerLessonEnrollment = (enrollmentId: string | null) => {
     if (enrollmentId) {
@@ -251,6 +253,7 @@ export default function CourseDetailContent({ courseId, user, onNavigate }: Prop
   };
 
   useEffect(() => {
+    setLoading(true);
     void Promise.all([
       api<Course>(`/courses/${courseId}`),
       api<Array<Teacher & { plans?: { label: string; price: number }[] }>>("/teachers"),
@@ -349,7 +352,8 @@ export default function CourseDetailContent({ courseId, user, onNavigate }: Prop
       }
       setWatchedLessons(nextWatched);
       setLessons(allCourseLessons);
-    }).catch(() => toast.error("تعذر تحميل بيانات الكورس"));
+    }).catch(() => toast.error("تعذر تحميل بيانات الكورس"))
+      .finally(() => setLoading(false));
   }, [courseId, user.id]);
 
   /* ── show lesson player ── */
@@ -374,7 +378,18 @@ export default function CourseDetailContent({ courseId, user, onNavigate }: Prop
     );
   }
 
-  if (!course) return <div className="paper-card loading-card">جاري تحميل بيانات الكورس...</div>;
+  if (loading) {
+    return (
+      <div className="student-course-detail" style={{ padding: "24px" }}>
+        <CardSkeleton count={1} />
+        <div style={{ marginTop: 24 }}>
+          <CardSkeleton count={3} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!course) return <div className="paper-card loading-card">تعذر تحميل بيانات الكورس.</div>;
 
   const publicCourse = {
     id: course.id as "programming" | "science" | "skills",

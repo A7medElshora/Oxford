@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Search, Download, CircleDollarSign } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { MetricsSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 
 type Enrollment = {
   id: string;
@@ -18,14 +19,17 @@ type Enrollment = {
 
 export default function AdminPaymentsManager() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
+    setLoading(true);
     void api<Enrollment[]>("/enrollments")
       .then(data => {
         setEnrollments(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
       })
-      .catch(() => toast.error("تعذر تحميل المدفوعات"));
+      .catch(() => toast.error("تعذر تحميل المدفوعات"))
+      .finally(() => setLoading(false));
   }, []);
 
   const totalRevenue = enrollments
@@ -46,33 +50,37 @@ export default function AdminPaymentsManager() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginBottom: "20px" }}>
-        <div className="paper-card" style={{ padding: "20px" }}>
-          <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "10px" }}>
-            <div style={{ background: "#eef6ff", color: "#1a72d5", padding: "10px", borderRadius: "12px" }}>
-              <CircleDollarSign size={24} />
+      {loading ? (
+        <MetricsSkeleton count={2} />
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginBottom: "20px" }}>
+          <div className="paper-card" style={{ padding: "20px" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "10px" }}>
+              <div style={{ background: "#eef6ff", color: "#1a72d5", padding: "10px", borderRadius: "12px" }}>
+                <CircleDollarSign size={24} />
+              </div>
+              <div>
+                <span className="eyebrow">TOTAL REVENUE</span>
+                <h3 style={{ fontSize: "20px", margin: 0 }}>{totalRevenue} ج.م</h3>
+              </div>
             </div>
-            <div>
-              <span className="eyebrow">TOTAL REVENUE</span>
-              <h3 style={{ fontSize: "20px", margin: 0 }}>{totalRevenue} ج.م</h3>
-            </div>
+            <p className="muted" style={{ fontSize: "12px", margin: 0 }}>إجمالي الإيرادات الفعلية (الطلبات المقبولة فقط)</p>
           </div>
-          <p className="muted" style={{ fontSize: "12px", margin: 0 }}>إجمالي الإيرادات الفعلية (الطلبات المقبولة فقط)</p>
-        </div>
 
-        <div className="paper-card" style={{ padding: "20px" }}>
-          <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "10px" }}>
-            <div style={{ background: "#fff5ef", color: "#f36a21", padding: "10px", borderRadius: "12px" }}>
-              <CircleDollarSign size={24} />
+          <div className="paper-card" style={{ padding: "20px" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "10px" }}>
+              <div style={{ background: "#fff5ef", color: "#f36a21", padding: "10px", borderRadius: "12px" }}>
+                <CircleDollarSign size={24} />
+              </div>
+              <div>
+                <span className="eyebrow">TOTAL ENROLLMENTS</span>
+                <h3 style={{ fontSize: "20px", margin: 0 }}>{enrollments.length} اشتراك</h3>
+              </div>
             </div>
-            <div>
-              <span className="eyebrow">TOTAL ENROLLMENTS</span>
-              <h3 style={{ fontSize: "20px", margin: 0 }}>{enrollments.length} اشتراك</h3>
-            </div>
+            <p className="muted" style={{ fontSize: "12px", margin: 0 }}>إجمالي الطلبات (بمختلف الحالات)</p>
           </div>
-          <p className="muted" style={{ fontSize: "12px", margin: 0 }}>إجمالي الطلبات (بمختلف الحالات)</p>
         </div>
-      </div>
+      )}
 
       <div className="toolbar" style={{ marginTop: 0 }}>
         <div className="search-box">
@@ -90,6 +98,9 @@ export default function AdminPaymentsManager() {
         </div>
       </div>
 
+      {loading ? (
+        <TableSkeleton rows={6} cols={6} />
+      ) : (
       <div className="table-card full">
         <div className="table-scroll">
           <table>
@@ -99,6 +110,8 @@ export default function AdminPaymentsManager() {
                 <th>الطالب</th>
                 <th>الكورس / المسار</th>
                 <th>نوع الاشتراك</th>
+                <th>وسيلة الدفع</th>
+                <th>رقم المحفظة المرسل</th>
                 <th>قيمة الاشتراك</th>
                 <th>الحالة</th>
               </tr>
@@ -124,6 +137,18 @@ export default function AdminPaymentsManager() {
                     <span className="signal-chip">{item.bookingType}</span>
                   </td>
                   <td>
+                    {(item as any).paymentMethodName ? (
+                      <span style={{ fontSize: "12px", fontWeight: 600, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "8px", padding: "2px 8px" }}>
+                        {(item as any).paymentMethodName}
+                      </span>
+                    ) : <span className="muted" style={{ fontSize: "12px" }}>—</span>}
+                  </td>
+                  <td>
+                    {(item as any).senderNumber ? (
+                      <span dir="ltr" style={{ fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>{(item as any).senderNumber}</span>
+                    ) : <span className="muted" style={{ fontSize: "12px" }}>—</span>}
+                  </td>
+                  <td>
                     <strong style={{ color: "var(--primary)" }}>{item.amount} ج.م</strong>
                   </td>
                   <td>
@@ -143,6 +168,7 @@ export default function AdminPaymentsManager() {
           )}
         </div>
       </div>
+      )}
     </>
   );
 }

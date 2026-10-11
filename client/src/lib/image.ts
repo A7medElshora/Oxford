@@ -1,43 +1,36 @@
 export async function compressImage(file: File, { maxBytes = 500_000, maxDimension = 1600 }: { maxBytes?: number; maxDimension?: number } = {}) {
-  if (!file.type.startsWith("image/")) return await fileToDataUrl(file);
+  if (!file.type.startsWith("image/")) throw new Error("الملف المختار ليس صورة");
+  if (!Number.isFinite(maxBytes) || maxBytes <= 0 || !Number.isFinite(maxDimension) || maxDimension <= 0) {
+    throw new Error("إعدادات ضغط الصورة غير صحيحة");
+  }
 
   const source = await fileToDataUrl(file);
   const image = await loadImage(source);
+  const initialScale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+  let width = Math.max(1, Math.round(image.width * initialScale));
+  let height = Math.max(1, Math.round(image.height * initialScale));
 
-  const maxSide = Math.max(image.width, image.height);
-  const scale = maxSide > maxDimension ? maxDimension / maxSide : 1;
-  const width = Math.max(1, Math.round(image.width * scale));
-  const height = Math.max(1, Math.round(image.height * scale));
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("تعذر تجهيز الصورة للضغط");
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
 
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d");
-  if (!context) return source;
-  context.drawImage(image, 0, 0, width, height);
+    const quality = Math.max(0.3, 0.86 - Math.floor(attempt % 4) * 0.14);
+    const output = canvas.toDataURL("image/jpeg", quality);
+    if (output.length <= maxBytes) return output;
 
-  let quality = 0.82;
-  let output = canvas.toDataURL(file.type || "image/jpeg", quality);
-  let attempts = 0;
-  while (output.length > maxBytes * 1.2 && attempts < 8) {
-    quality = Math.max(0.25, quality - 0.1);
-    output = canvas.toDataURL(file.type || "image/jpeg", quality);
-    attempts += 1;
-  }
-
-  if (output.length > maxBytes * 1.1 && maxSide > 900) {
-    const smallerScale = 900 / maxSide;
-    const nextCanvas = document.createElement("canvas");
-    nextCanvas.width = Math.max(1, Math.round(image.width * smallerScale));
-    nextCanvas.height = Math.max(1, Math.round(image.height * smallerScale));
-    const nextContext = nextCanvas.getContext("2d");
-    if (nextContext) {
-      nextContext.drawImage(image, 0, 0, nextCanvas.width, nextCanvas.height);
-      output = nextCanvas.toDataURL(file.type || "image/jpeg", 0.7);
+    if ((attempt + 1) % 4 === 0) {
+      width = Math.max(1, Math.floor(width * 0.8));
+      height = Math.max(1, Math.floor(height * 0.8));
     }
   }
 
-  return output.length > maxBytes ? source : output;
+  throw new Error("حجم الصورة كبير جدًا، اختر صورة أصغر");
 }
 
 export function fileToDataUrl(file: File) {

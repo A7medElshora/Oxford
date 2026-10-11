@@ -40,9 +40,11 @@ import {
   TrendingUp,
   UserPlus,
   Users,
+  WalletCards,
   XCircle,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
+import { ListSkeleton, MetricsSkeleton } from "@/components/ui/skeleton";
 
 type AdminDashboardProps = {
   user: ApiUser;
@@ -153,14 +155,22 @@ export default function AdminDashboard({
       })
       .catch(() => undefined);
 
-    // Notifications
-    void api<Array<{ id: string; title: string; message: string; read: boolean; type?: string }>>("/notifications")
-      .then(setNotifications)
-      .catch(() => undefined);
+    const refreshNotifications = () => {
+      void api<Array<{ id: string; title: string; message: string; read: boolean; type?: string }>>("/notifications")
+        .then(setNotifications)
+        .catch(() => undefined);
+    };
+    refreshNotifications();
+    const notificationTimer = window.setInterval(refreshNotifications, 15_000);
+    window.addEventListener("focus", refreshNotifications);
 
     const syncGov = () => setGovernance(readGovernance());
     window.addEventListener("storage", syncGov);
-    return () => window.removeEventListener("storage", syncGov);
+    return () => {
+      window.clearInterval(notificationTimer);
+      window.removeEventListener("focus", refreshNotifications);
+      window.removeEventListener("storage", syncGov);
+    };
   }, []);
 
   const stats = dashboardData?.stats;
@@ -235,14 +245,16 @@ export default function AdminDashboard({
     { label: "الكورسات", page: "courses", icon: BookOpen },
     { label: "الحضور", page: "attendance", icon: ClipboardCheck },
     { label: "المدفوعات", page: "payments", icon: CircleDollarSign },
+    { label: "طرق الدفع", page: "payment-methods", icon: WalletCards },
     { label: "التقارير", page: "reports", icon: TrendingUp },
     { label: "إعلانات الصفحة الرئيسية", page: "announcements", icon: Sparkles },
     { label: "الرسائل", page: "messages", icon: MessageCircle, badge: 3 },
   ];
   const visibleNavItems = navItems.filter(item =>
     user.id === "admin-demo" ||
-    (item.page !== "payments" && item.page !== "reports" && item.page !== "announcements") ||
+    (item.page !== "payments" && item.page !== "payment-methods" && item.page !== "reports" && item.page !== "announcements") ||
     (item.page === "payments" && user.permissions?.includes("payments")) ||
+    (item.page === "payment-methods" && user.permissions?.includes("payments")) ||
     (item.page === "reports" && user.permissions?.includes("reports")) ||
     (item.page === "announcements" && user.permissions?.includes("content"))
   );
@@ -329,7 +341,7 @@ export default function AdminDashboard({
                             );
                           }
                           setNotificationsOpen(false);
-                          onNavigate("governance");
+                          onNavigate(item.title === "طلب انضمام مدرس جديد" ? "admins" : "governance");
                         }}
                       >
                         <b>{item.title}</b>
@@ -612,7 +624,9 @@ export default function AdminDashboard({
           </div>
 
           <div className="activity-feed-list">
-            {recentStudents.length > 0 ? (
+            {!dashboardData ? (
+              <ListSkeleton rows={5} />
+            ) : recentStudents.length > 0 ? (
               recentStudents.slice(0, 5).map((s, idx) => (
                 <div className="activity-item-card" key={idx}>
                   <div className="activity-icon-badge orange">
@@ -632,40 +646,6 @@ export default function AdminDashboard({
             )}
           </div>
         </aside>
-      </section>
-
-      {/* QUICK ACTIONS BAR */}
-      <section className="admin-quick-actions-bar">
-        <div className="actions-bar-header">
-          <Sparkles size={16} />
-          <span>إجراءات سريعة</span>
-        </div>
-        <div className="quick-actions-grid">
-          <button className="action-btn" onClick={() => onNavigate("students")}>
-            <span className="btn-icon"><UserPlus size={16} /></span>
-            <span>+ إضافة طالب</span>
-          </button>
-          <button className="action-btn" onClick={() => onNavigate("teachers")}>
-            <span className="btn-icon"><GraduationCap size={16} /></span>
-            <span>+ إضافة معلم</span>
-          </button>
-          <button className="action-btn" onClick={() => onNavigate("course-new")}>
-            <span className="btn-icon"><Plus size={16} /></span>
-            <span>+ إضافة دورة</span>
-          </button>
-          <button className="action-btn" onClick={() => onNavigate("reports")}>
-            <span className="btn-icon"><TrendingUp size={16} /></span>
-            <span>عرض التقارير</span>
-          </button>
-          <button className="action-btn" onClick={() => onNavigate("attendance")}>
-            <span className="btn-icon"><ClipboardCheck size={16} /></span>
-            <span>تسجيل حضور</span>
-          </button>
-          <button className="action-btn" onClick={() => onNavigate("payments")}>
-            <span className="btn-icon"><CircleDollarSign size={16} /></span>
-            <span>إنشاء فاتورة</span>
-          </button>
-        </div>
       </section>
 
       {/* PENDING REQUESTS SECTION */}
@@ -807,7 +787,9 @@ export default function AdminDashboard({
           </div>
 
           <div className="roster-list-body">
-            {recentStudents.length > 0 ? (
+            {!dashboardData ? (
+              <ListSkeleton rows={4} />
+            ) : recentStudents.length > 0 ? (
               recentStudents.slice(0, 4).map((s, idx) => (
                 <div className="roster-item-row" key={idx}>
                   <div className="roster-user">

@@ -28,7 +28,7 @@ const registerBody = z.object({
 	grade: z.string().trim().min(1).max(80).optional(),
 	subject: z.string().trim().min(1).max(80).optional(),
 	grades: z.array(z.string().trim().min(1).max(80)).min(1).max(12).optional(),
-	avatar: z.string().max(700_000).optional(),
+	avatar: z.string().max(700_000, "حجم الصورة كبير جداً، يرجى اختيار صورة أصغر").optional(),
 	adminInviteCode: z.string().optional(),
 }).superRefine((body, ctx) => {
 	if (body.role === "student" && (!body.phone || !body.parentPhone || !body.grade)) ctx.addIssue({ code: "custom", path: ["role"], message: "بيانات الطالب الهاتف والصف وولي الأمر مطلوبة" });
@@ -39,7 +39,7 @@ const lessonBody = z.object({ courseId, title: z.string().min(1), description: z
 const question = z.object({ prompt: z.string().min(1), choices: z.array(z.string().min(1)).min(2), correctIndex: z.number().int().nonnegative(), marks: z.number().positive().default(1) }).superRefine((value, ctx) => { if (value.correctIndex >= value.choices.length) ctx.addIssue({ code: "custom", path: ["correctIndex"], message: "correctIndex must reference a choice" }); });
 const examBody = z.object({ courseId, title: z.string().min(1), description: z.string().default(""), duration: z.number().int().positive(), resultVisibility: z.enum(["immediate", "after_review"]).default("immediate"), questions: z.array(question).min(1), published: z.boolean().default(true) });
 const teacherPlan = z.object({ teacherId: z.string().min(1), monthlyPrice: z.number().nonnegative(), lessonPrice: z.number().nonnegative(), chapterPrice: z.number().nonnegative(), discountEnabled: z.boolean(), discountKind: z.enum(["percent", "amount"]).optional(), discountValue: z.number().nonnegative().optional() }).superRefine((value, ctx) => { if (value.discountEnabled && (!value.discountKind || value.discountValue === undefined)) ctx.addIssue({ code: "custom", path: ["discountValue"], message: "Discount type and value are required when discounting is enabled" }); if (value.discountKind === "percent" && value.discountValue !== undefined && value.discountValue > 100) ctx.addIssue({ code: "custom", path: ["discountValue"], message: "Percentage discount cannot exceed 100" }); });
-const courseBody = z.object({ id: courseId, title: z.string().trim().min(1), description: z.string().default(""), level: z.string().default("كل المستويات"), duration: z.string().default("غير محدد"), image: z.string().default(""), price: z.number().nonnegative().default(0), published: z.boolean().default(true), targetGrades: z.array(z.string().trim().min(1)).default([]), teacherPlans: z.array(teacherPlan).default([]) });
+const courseBody = z.object({ id: courseId, title: z.string().trim().min(1), description: z.string().default(""), level: z.string().default("كل المستويات"), duration: z.string().default("غير محدد"), image: z.string().default(""), price: z.number().nonnegative().default(0), published: z.boolean().default(true), targetGrades: z.array(z.string().trim().min(1)).default([]), teacherPlans: z.array(teacherPlan).default([]), paymentMethodIds: z.array(z.string().uuid()).default([]) });
 const coursePatchBody = courseBody.omit({ id: true }).partial();
 const teacherBody = z.object({ name: z.string().trim().min(2).max(80), subject: z.string().trim().min(1).max(80), bio: z.string().max(5000).default(""), image: z.string().max(700_000).default(""), trustLabel: z.string().trim().max(80).default("مدرس جديد") });
 const teacherPatchBody = teacherBody.partial();
@@ -47,7 +47,9 @@ const announcementFields = z.object({ kicker: z.string().trim().min(1).max(80), 
 function validateAnnouncement(value: { mediaType?: "none" | "image" | "video"; mediaUrl?: string }, ctx: z.RefinementCtx) { if (value.mediaType !== "none" && !value.mediaUrl) ctx.addIssue({ code: "custom", path: ["mediaUrl"], message: "رابط الوسائط مطلوب" }); if (value.mediaType === "image" && value.mediaUrl && !value.mediaUrl.startsWith("data:image/") && !URL.canParse(value.mediaUrl)) ctx.addIssue({ code: "custom", path: ["mediaUrl"], message: "رابط الصورة غير صحيح" }); if (value.mediaType === "video" && value.mediaUrl && !value.mediaUrl.startsWith("data:video/") && !URL.canParse(value.mediaUrl)) ctx.addIssue({ code: "custom", path: ["mediaUrl"], message: "رابط الفيديو غير صحيح" }); }
 const announcementBody = announcementFields.superRefine(validateAnnouncement);
 const announcementPatchBody = announcementFields.partial().superRefine(validateAnnouncement);
-const enrollmentBody = z.object({ courseId, teacherId: z.string().min(1), studentId: z.string().optional(), studentName: z.string().min(1), studentPhone: z.string().min(8), parentPhone: z.string().min(8), grade: z.string().min(1), bookingType: z.string().min(1), unit: z.string().optional(), amount: z.number().positive().optional(), transferImage: z.string().max(700_000).refine((value) => value.startsWith("data:image/"), "transferImage must be an image data URL").optional() });
+const enrollmentBody = z.object({ courseId, teacherId: z.string().min(1), studentId: z.string().optional(), studentName: z.string().min(1), studentPhone: z.string().min(8), parentPhone: z.string().min(8), grade: z.string().min(1), bookingType: z.string().min(1), unit: z.string().optional(), amount: z.number().positive().optional(), transferImage: z.string().max(700_000).refine((value) => value.startsWith("data:image/"), "transferImage must be an image data URL").optional(), paymentMethodId: z.string().uuid().optional(), paymentMethodName: z.string().max(120).optional(), senderNumber: z.string().max(30).optional() });
+const paymentMethodBody = z.object({ name: z.string().trim().min(1).max(120), type: z.string().trim().min(1).max(60).default("CUSTOM"), walletNumber: z.string().trim().max(30).optional(), paymentLink: z.string().max(2000).optional(), qrCodeUrl: z.string().max(700_000).optional(), instructions: z.string().max(1000).optional(), active: z.boolean().default(true) });
+const paymentMethodPatchBody = paymentMethodBody.partial();
 
 function calculateEnrollmentAmount(basePrice: number, discountEnabled?: boolean, discountKind?: string | null, discountValue?: unknown) {
 	if (!discountEnabled || discountValue === null || discountValue === undefined) return basePrice;
@@ -528,7 +530,7 @@ app.patch("/admin/announcements/:announcementId", auth(), allow("admin"), allowP
 app.delete("/admin/announcements/:announcementId", auth(), allow("admin"), allowPermission("content"), (req, res) => { const index = store.announcements.findIndex(item => item.id === req.params.announcementId); if (index < 0) return sendError(res, 404, "الإعلان غير موجود"); store.announcements.splice(index, 1); saveAnnouncements(); return res.sendStatus(204); });
 app.get("/notifications", prismaProtectedAuth, async (req, res) => {
 	if (prismaAuthEnabled) {
-		const notifications = await prismaReadOr503(res, () => prisma.notification.findMany({ where: { userId: currentUser(req).id }, orderBy: { createdAt: "desc" } }));
+		const notifications = await prismaReadOr503(res, () => prisma.notification.findMany({ where: { userId: prismaUserId(req) }, orderBy: { createdAt: "desc" } }));
 		if (!notifications) return;
 		return ok(res, notifications.map((item) => ({ ...item, type: item.type.toLowerCase(), createdAt: item.createdAt.toISOString() })));
 	}
@@ -536,7 +538,7 @@ app.get("/notifications", prismaProtectedAuth, async (req, res) => {
 });
 app.patch("/notifications/:notificationId/read", prismaProtectedAuth, async (req, res) => {
 	if (prismaAuthEnabled) {
-		const notification = await prismaReadOr503(res, () => prisma.notification.findFirst({ where: { id: req.params.notificationId, userId: currentUser(req).id } }));
+		const notification = await prismaReadOr503(res, () => prisma.notification.findFirst({ where: { id: req.params.notificationId, userId: prismaUserId(req) } }));
 		if (!notification) return sendError(res, 404, "Notification not found");
 		const updated = await prismaReadOr503(res, () => prisma.notification.update({ where: { id: notification.id }, data: { read: true, readAt: new Date() } }));
 		if (!updated) return;
@@ -569,10 +571,15 @@ app.post("/auth/register", validate(registerBody), async (req, res) => {
 	if (!prismaAuthEnabled) {
 		if (store.users.some((user) => user.email.toLowerCase() === body.email.toLowerCase())) return sendError(res, 409, "البريد الإلكتروني مستخدم بالفعل");
 		if (body.role === "admin" && !(await adminInviteMatches(body.adminInviteCode, store.settings.adminInviteCode))) return sendError(res, 400, "كود دعوة الأدمن غير صحيح");
-		const status = body.role === "student" ? "approved" : "pending";
+		const status = (body.role === "student" || body.role === "admin") ? "approved" : "pending";
 		const user: AuthUser = { id: id(body.role), name: body.name, email: body.email.toLowerCase(), password: body.password, role: body.role, phone: body.phone, parentPhone: body.parentPhone, grade: body.grade, subject: body.subject, grades: body.grades, avatar: body.avatar, status, permissions: body.role === "admin" ? [...permissionKeys] : body.role === "teacher" ? ["content"] : [] };
 		store.users.push(user);
 		if (body.role === "teacher") store.teachers.push({ id: user.id, name: user.name, subject: body.subject || "", bio: "مدرس جديد على المنصة", image: body.avatar || "", courseIds: [], trustLabel: "مدرس جديد", plans: [] });
+		if (body.role === "teacher") {
+			store.users.filter((admin) => admin.role === "admin").forEach((admin) => {
+				store.notifications.push({ id: id("notification"), userId: admin.id, type: "system", title: "طلب انضمام مدرس جديد", message: `أرسل ${user.name} طلبًا للانضمام كمدرس، ويرجى مراجعته.`, read: false, createdAt: timestamp() });
+			});
+		}
 		if (status === "pending") return ok(res, { token: null, user: publicUser(user), message: "تم إرسال طلبك للإدارة وسيتم مراجعته قريباً" }, 201);
 		const token = id("demo-session");
 		store.sessions.set(token, user.id);
@@ -617,7 +624,7 @@ app.post("/auth/register", validate(registerBody), async (req, res) => {
 					grade: body.grade || null,
 					subject: body.subject || null,
 					avatarUrl: body.avatar || null,
-					status: body.role === "student" ? "APPROVED" : "PENDING",
+					status: (body.role === "student" || body.role === "admin") ? "APPROVED" : "PENDING",
 					...(createPermissions.length ? { permissions: { create: createPermissions } } : {}),
 				},
 				include: { permissions: true },
@@ -630,7 +637,29 @@ app.post("/auth/register", validate(registerBody), async (req, res) => {
 				});
 			}
 			return user;
-		});
+		}, { timeout: 25000, maxWait: 10000 });
+
+		if (body.role === "teacher") {
+			try {
+				const admins = await prisma.user.findMany({
+					where: { role: "ADMIN" },
+					select: { id: true },
+				});
+				if (admins.length > 0) {
+					await prisma.notification.createMany({
+						data: admins.map((admin) => ({
+							userId: admin.id,
+							type: "SYSTEM" as const,
+							title: "طلب انضمام مدرس جديد",
+							message: `أرسل ${createdUser.name} طلبًا للانضمام كمدرس، ويرجى مراجعته.`,
+						})),
+					});
+				}
+			} catch (notifErr) {
+				console.error("Unable to notify admins about teacher registration:", notifErr);
+			}
+		}
+
 		if (createdUser.status === "APPROVED") {
 			const { rawToken } = await createPrismaSession(createdUser.id, req);
 			void prisma.user.update({ where: { id: createdUser.id }, data: { lastLoginAt: new Date() } }).catch(() => console.error("Unable to update last login timestamp"));
@@ -643,8 +672,11 @@ app.post("/auth/register", validate(registerBody), async (req, res) => {
 			if (Array.isArray(target) && target.includes("phone")) return sendError(res, 409, "رقم الهاتف مستخدم بالفعل");
 			return sendError(res, 409, "البريد الإلكتروني مستخدم بالفعل");
 		}
+		if (error && typeof error === "object" && "code" in error && error.code === "P2028") {
+			return sendError(res, 400, "حجم الصورة كبير جداً، يرجى اختيار صورة أصغر");
+		}
 		console.error("Prisma registration failed:", error);
-		return sendError(res, 503, "Authentication service is unavailable");
+		return sendError(res, 500, "تعذر إتمام التسجيل، إذا قمت برفع صورة يرجى اختيار صورة أصغر");
 	}
 });
 app.post("/auth/logout", async (req, res, next) => {
@@ -1291,7 +1323,7 @@ app.get("/enrollments", prismaProtectedAuth, async (req, res) => {
 				? { teacherId: prismaUserId(req) }
 				: {};
 		const enrollments = await prisma.enrollment.findMany({ where, include: { course: true, student: true }, orderBy: { createdAt: "desc" } });
-		return ok(res, enrollments.map((item) => ({ id: item.id, studentId: item.studentId, courseId: item.courseId, teacherId: item.teacherId, studentName: item.studentNameSnapshot, studentPhone: item.studentPhoneSnapshot, parentPhone: item.parentPhoneSnapshot, grade: item.gradeSnapshot, bookingType: item.bookingType, unit: item.unit || undefined, amount: Number(item.amount), transferImage: item.transferImageUrl || undefined, status: item.status.toLowerCase(), createdAt: item.createdAt.toISOString(), courseTitle: item.course.title, student: item.student ? { id: item.student.id, name: item.student.name, email: item.student.email, role: item.student.role.toLowerCase(), status: item.student.status.toLowerCase() } : undefined })));
+		return ok(res, enrollments.map((item) => ({ id: item.id, studentId: item.studentId, courseId: item.courseId, teacherId: item.teacherId, studentName: item.studentNameSnapshot, studentPhone: item.studentPhoneSnapshot, parentPhone: item.parentPhoneSnapshot, grade: item.gradeSnapshot, bookingType: item.bookingType, unit: item.unit || undefined, amount: Number(item.amount), transferImage: item.transferImageUrl || undefined, paymentMethodId: item.paymentMethodId || undefined, paymentMethodName: item.paymentMethodName || undefined, senderNumber: item.senderNumber || undefined, status: item.status.toLowerCase(), createdAt: item.createdAt.toISOString(), courseTitle: item.course.title, student: item.student ? { id: item.student.id, name: item.student.name, email: item.student.email, role: item.student.role.toLowerCase(), status: item.student.status.toLowerCase() } : undefined })));
 	}
 	const user = currentUser(req);
 	store.enrollments.forEach((e) => {
@@ -1340,9 +1372,9 @@ app.post("/enrollments", prismaProtectedAuth, allow("student"), validate(enrollm
 		const basePrice = Number(body.bookingType === "شهري" ? plan?.monthlyPrice : body.bookingType === "بالحصة" ? plan?.lessonPrice : plan?.chapterPrice) || Number(course.price);
 		const calculatedAmount = calculateEnrollmentAmount(basePrice, plan?.discountEnabled, plan?.discountKind, plan?.discountValue);
 		const amount = body.amount ?? calculatedAmount;
-		const enrollment = await prisma.enrollment.create({ data: { studentId: prismaUserId(req), courseId: body.courseId, teacherId: selectedTeacher.teacherId, studentNameSnapshot: student.name, studentPhoneSnapshot: student.phone || body.studentPhone, parentPhoneSnapshot: student.parentPhone || body.parentPhone, gradeSnapshot: student.grade || body.grade, bookingType: body.bookingType, unit: body.unit || null, amount, transferImageUrl: body.transferImage || null, status: "PENDING" } });
-		await prisma.notification.create({ data: { userId: (await prisma.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } }))?.id || student.id, type: "ENROLLMENT", title: "طلب اشتراك جديد", message: `${student.name} أرسل طلب اشتراك في ${course.title} مع صورة التحويل.`, enrollmentId: enrollment.id } });
-		return ok(res, { id: enrollment.id, studentId: enrollment.studentId, courseId: enrollment.courseId, teacherId: enrollment.teacherId, studentName: enrollment.studentNameSnapshot, studentPhone: enrollment.studentPhoneSnapshot, parentPhone: enrollment.parentPhoneSnapshot, grade: enrollment.gradeSnapshot, bookingType: enrollment.bookingType, unit: enrollment.unit || undefined, amount: Number(enrollment.amount), transferImage: enrollment.transferImageUrl || undefined, status: enrollment.status.toLowerCase(), createdAt: enrollment.createdAt.toISOString() }, 201);
+		const enrollment = await prisma.enrollment.create({ data: { studentId: prismaUserId(req), courseId: body.courseId, teacherId: selectedTeacher.teacherId, studentNameSnapshot: student.name, studentPhoneSnapshot: student.phone || body.studentPhone, parentPhoneSnapshot: student.parentPhone || body.parentPhone, gradeSnapshot: student.grade || body.grade, bookingType: body.bookingType, unit: body.unit || null, amount, transferImageUrl: body.transferImage || null, paymentMethodId: body.paymentMethodId || null, paymentMethodName: body.paymentMethodName || null, senderNumber: body.senderNumber || null, status: "PENDING" } });
+		await prisma.notification.create({ data: { userId: (await prisma.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } }))?.id || student.id, type: "ENROLLMENT", title: "طلب اشتراك جديد", message: `${student.name} أرسل طلب اشتراك في ${course.title}${body.paymentMethodName ? ` عبر ${body.paymentMethodName}` : ''}.`, enrollmentId: enrollment.id } });
+		return ok(res, { id: enrollment.id, studentId: enrollment.studentId, courseId: enrollment.courseId, teacherId: enrollment.teacherId, studentName: enrollment.studentNameSnapshot, studentPhone: enrollment.studentPhoneSnapshot, parentPhone: enrollment.parentPhoneSnapshot, grade: enrollment.gradeSnapshot, bookingType: enrollment.bookingType, unit: enrollment.unit || undefined, amount: Number(enrollment.amount), transferImage: enrollment.transferImageUrl || undefined, paymentMethodId: enrollment.paymentMethodId || undefined, paymentMethodName: enrollment.paymentMethodName || undefined, senderNumber: enrollment.senderNumber || undefined, status: enrollment.status.toLowerCase(), createdAt: enrollment.createdAt.toISOString() }, 201);
 	}
 	const body = req.body;
 	const student = currentUser(req);
@@ -1987,6 +2019,123 @@ app.patch("/settings/events", prismaProtectedAuth, allow("admin"), allowPermissi
 	saveSettings();
 	return ok(res, store.settings);
 });
+// ─── Payment Methods ─────────────────────────────────────────────────────
+// ─── Payment Methods ─────────────────────────────────────────────────────
+app.get("/payment-methods", prismaProtectedAuth, async (_req, res) => {
+	if (prismaAuthEnabled) {
+		try {
+			const methods = await prisma.paymentMethod.findMany({ orderBy: { createdAt: "asc" } });
+			return ok(res, methods.map((m) => ({ id: m.id, name: m.name, type: m.type, walletNumber: m.walletNumber || undefined, paymentLink: m.paymentLink || undefined, qrCodeUrl: m.qrCodeUrl || undefined, instructions: m.instructions || undefined, active: m.active, createdAt: m.createdAt.toISOString() })));
+		} catch (error) { console.error("paymentMethods GET error:", error); }
+	}
+	return ok(res, store.paymentMethods || []);
+});
+
+app.post("/payment-methods", prismaProtectedAuth, allow("admin"), allowPermission("payments"), validate(paymentMethodBody), async (req, res) => {
+	const body = req.body as z.infer<typeof paymentMethodBody>;
+	if (prismaAuthEnabled) {
+		try {
+			const method = await prisma.paymentMethod.create({ data: { name: body.name, type: body.type, walletNumber: body.walletNumber || null, paymentLink: body.paymentLink || null, qrCodeUrl: body.qrCodeUrl || null, instructions: body.instructions || null, active: body.active } });
+			const item = { id: method.id, name: method.name, type: method.type, walletNumber: method.walletNumber || undefined, paymentLink: method.paymentLink || undefined, qrCodeUrl: method.qrCodeUrl || undefined, instructions: method.instructions || undefined, active: method.active, createdAt: method.createdAt.toISOString() };
+			if (!store.paymentMethods) store.paymentMethods = [];
+			store.paymentMethods.push(item);
+			return ok(res, item, 201);
+		} catch (error) { console.error("paymentMethod POST Prisma error:", error); }
+	}
+	const item = {
+		id: id("pm"),
+		name: body.name,
+		type: body.type,
+		walletNumber: body.walletNumber || undefined,
+		paymentLink: body.paymentLink || undefined,
+		qrCodeUrl: body.qrCodeUrl || undefined,
+		instructions: body.instructions || undefined,
+		active: body.active,
+		createdAt: timestamp(),
+	};
+	if (!store.paymentMethods) store.paymentMethods = [];
+	store.paymentMethods.push(item);
+	return ok(res, item, 201);
+});
+
+app.patch("/payment-methods/:methodId", prismaProtectedAuth, allow("admin"), allowPermission("payments"), validate(paymentMethodPatchBody), async (req, res) => {
+	const body = req.body as z.infer<typeof paymentMethodPatchBody>;
+	if (prismaAuthEnabled) {
+		try {
+			const method = await prisma.paymentMethod.update({ where: { id: req.params.methodId }, data: { ...(body.name !== undefined && { name: body.name }), ...(body.type !== undefined && { type: body.type }), ...(body.walletNumber !== undefined && { walletNumber: body.walletNumber || null }), ...(body.paymentLink !== undefined && { paymentLink: body.paymentLink || null }), ...(body.qrCodeUrl !== undefined && { qrCodeUrl: body.qrCodeUrl || null }), ...(body.instructions !== undefined && { instructions: body.instructions || null }), ...(body.active !== undefined && { active: body.active }) } });
+			const item = { id: method.id, name: method.name, type: method.type, walletNumber: method.walletNumber || undefined, paymentLink: method.paymentLink || undefined, qrCodeUrl: method.qrCodeUrl || undefined, instructions: method.instructions || undefined, active: method.active, createdAt: method.createdAt.toISOString() };
+			if (store.paymentMethods) {
+				store.paymentMethods = store.paymentMethods.map(m => m.id === req.params.methodId ? item : m);
+			}
+			return ok(res, item);
+		} catch (error: any) {
+			console.error("paymentMethod PATCH Prisma error:", error);
+		}
+	}
+	if (!store.paymentMethods) store.paymentMethods = [];
+	const existingIndex = store.paymentMethods.findIndex(m => m.id === req.params.methodId);
+	if (existingIndex === -1) return sendError(res, 404, "Payment method not found");
+	const updated = {
+		...store.paymentMethods[existingIndex],
+		...(body.name !== undefined && { name: body.name }),
+		...(body.type !== undefined && { type: body.type }),
+		...(body.walletNumber !== undefined && { walletNumber: body.walletNumber }),
+		...(body.paymentLink !== undefined && { paymentLink: body.paymentLink }),
+		...(body.qrCodeUrl !== undefined && { qrCodeUrl: body.qrCodeUrl }),
+		...(body.instructions !== undefined && { instructions: body.instructions }),
+		...(body.active !== undefined && { active: body.active }),
+	};
+	store.paymentMethods[existingIndex] = updated;
+	return ok(res, updated);
+});
+
+app.delete("/payment-methods/:methodId", prismaProtectedAuth, allow("admin"), allowPermission("payments"), async (req, res) => {
+	if (prismaAuthEnabled) {
+		try {
+			await prisma.paymentMethod.delete({ where: { id: req.params.methodId } });
+		} catch (error: any) {
+			console.error("paymentMethod DELETE Prisma error:", error);
+		}
+	}
+	if (store.paymentMethods) {
+		store.paymentMethods = store.paymentMethods.filter(m => m.id !== req.params.methodId);
+	}
+	return ok(res, { success: true });
+});
+
+// Get payment methods for a specific course
+app.get("/courses/:courseId/payment-methods", catalogAuth(false), async (req, res) => {
+	if (prismaAuthEnabled) {
+		try {
+			const links = await prisma.coursePaymentMethod.findMany({ where: { courseId: req.params.courseId }, include: { paymentMethod: true } });
+			return ok(res, links.map((l) => ({ id: l.paymentMethod.id, name: l.paymentMethod.name, type: l.paymentMethod.type, walletNumber: l.paymentMethod.walletNumber || undefined, paymentLink: l.paymentMethod.paymentLink || undefined, qrCodeUrl: l.paymentMethod.qrCodeUrl || undefined, instructions: l.paymentMethod.instructions || undefined, active: l.paymentMethod.active })));
+		} catch (error) { console.error("course paymentMethods error:", error); }
+	}
+	const linkedIds = store.coursePaymentMethods?.get(req.params.courseId) || [];
+	const methods = (store.paymentMethods || []).filter(m => linkedIds.includes(m.id) || linkedIds.length === 0);
+	return ok(res, methods);
+});
+
+// Set payment methods for a course (replaces all)
+app.put("/courses/:courseId/payment-methods", catalogAuth(), allow("admin"), allowPermission("courses"), async (req, res) => {
+	const ids = z.array(z.string()).safeParse(req.body.paymentMethodIds);
+	if (!ids.success) return sendError(res, 400, "paymentMethodIds must be an array of strings");
+	if (prismaAuthEnabled) {
+		try {
+			await prisma.coursePaymentMethod.deleteMany({ where: { courseId: req.params.courseId } });
+			if (ids.data.length > 0) {
+				await prisma.coursePaymentMethod.createMany({ data: ids.data.map((pmId) => ({ courseId: req.params.courseId, paymentMethodId: pmId })), skipDuplicates: true });
+			}
+			const links = await prisma.coursePaymentMethod.findMany({ where: { courseId: req.params.courseId }, include: { paymentMethod: true } });
+			return ok(res, links.map((l) => ({ id: l.paymentMethod.id, name: l.paymentMethod.name, type: l.paymentMethod.type, walletNumber: l.paymentMethod.walletNumber || undefined, paymentLink: l.paymentMethod.paymentLink || undefined, qrCodeUrl: l.paymentMethod.qrCodeUrl || undefined, instructions: l.paymentMethod.instructions || undefined, active: l.paymentMethod.active })));
+		} catch (error) { console.error("course setPaymentMethods error:", error); }
+	}
+	if (!store.coursePaymentMethods) store.coursePaymentMethods = new Map();
+	store.coursePaymentMethods.set(req.params.courseId, ids.data);
+	const methods = (store.paymentMethods || []).filter(m => ids.data.includes(m.id));
+	return ok(res, methods);
+});
+
 app.use((_req, res) => sendError(res, 404, "Route not found"));
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => { console.error(error); return sendError(res, 500, "Unexpected server error"); });
 

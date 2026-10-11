@@ -9,6 +9,7 @@ import AdminCatalogManager from "@/components/AdminCatalogManager";
 import AdminCourseCreate from "@/components/AdminCourseCreate";
 import AdminCourseDetail from "@/components/AdminCourseDetail";
 import AdminPaymentsManager from "@/components/AdminPaymentsManager";
+import AdminPaymentMethodsManager from "@/components/AdminPaymentMethodsManager";
 import AdminReportsManager from "@/components/AdminReportsManager";
 import AdminAnnouncementsManager from "@/components/AdminAnnouncementsManager";
 import AdminStudentsAttendance from "@/components/AdminStudentsAttendance";
@@ -3202,6 +3203,7 @@ function DataPage({
     teachers: "إدارة المدرسين",
     attendance: "سجل الحضور",
     payments: "المدفوعات والاشتراكات",
+    "payment-methods": "طرق الدفع",
     reports: "التقارير والتحليلات",
     lessons: "مكتبة المحاضرات",
     exams: "الامتحانات",
@@ -3245,6 +3247,8 @@ function DataPage({
     return <AdminGovernance learning={learning} updateLearning={updateLearning} canManageTeam={user.id === "admin-demo" || Boolean(user.permissions?.includes("users"))} initialTab={page === "admins" ? "admins" : undefined} />;
   if (page === "payments" && role === "admin")
     return <AdminPaymentsManager />;
+  if (page === "payment-methods" && role === "admin")
+    return <AdminPaymentMethodsManager />;
   if (page === "reports" && role === "admin")
     return <AdminReportsManager />;
   if (page === "announcements" && role === "admin")
@@ -3478,6 +3482,7 @@ const navByRole: Record<Role, { label: string; icon: any; page: string }[]> = {
     { label: "الكورسات", icon: BookOpen, page: "courses" },
     { label: "الحضور", icon: ClipboardCheck, page: "attendance" },
     { label: "المدفوعات", icon: CircleDollarSign, page: "payments" },
+    { label: "طرق الدفع", icon: WalletCards, page: "payment-methods" },
     { label: "التقارير", icon: TrendingUp, page: "reports" },
     { label: "إعلانات الصفحة الرئيسية", icon: Sparkles, page: "announcements" },
     { label: "الرسائل", icon: MessageCircle, page: "messages" },
@@ -3498,6 +3503,7 @@ const navByRole: Record<Role, { label: string; icon: any; page: string }[]> = {
 
 const adminPagePermissions: Partial<Record<string, AdminPermission | AdminPermission[]>> = {
   payments: "payments",
+  "payment-methods": "payments",
   reports: "reports",
   announcements: "content",
 };

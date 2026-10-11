@@ -2956,3 +2956,31 @@ footer{display:flex;justify-content:space-between;gap:10px;padding:0 42px 25px;c
  button:disabled{cursor:wait;opacity:.72}
  button:disabled::after{content:"";display:inline-block;width:11px;height:11px;margin-inline-start:7px;border:2px solid currentColor;border-left-color:transparent;border-radius:50%;vertical-align:-2px;animation:button-progress .7s linear infinite}
  @keyframes button-progress{to{transform:rotate(360deg)}}
+
+/* Skeleton Loading Animation */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(200, 200, 200, 0.12) 25%,
+    rgba(244, 123, 32, 0.18) 37%,
+    rgba(200, 200, 200, 0.12) 63%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.dark .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(244, 123, 32, 0.2) 37%,
+    rgba(255, 255, 255, 0.05) 63%
+  );
+  background-size: 200% 100%;
+}
+

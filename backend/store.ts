@@ -60,6 +60,8 @@ export const store: Store = {
   sessions: new Map(),
   settings: readSettings(),
   announcements: readAnnouncements(),
+  paymentMethods: [],
+  coursePaymentMethods: new Map(),
 };
 
 export function id(prefix: string) { return `${prefix}-${randomUUID()}`; }

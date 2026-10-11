@@ -168,6 +168,18 @@ export type Announcement = {
   createdAt: string;
 };
 
+export type PaymentMethodItem = {
+  id: string;
+  name: string;
+  type: string;
+  walletNumber?: string;
+  paymentLink?: string;
+  qrCodeUrl?: string;
+  instructions?: string;
+  active: boolean;
+  createdAt: string;
+};
+
 export type Store = {
   users: AuthUser[];
   courses: Course[];
@@ -186,6 +198,8 @@ export type Store = {
   sessions: Map<string, string>;
   settings: PlatformSettings;
   announcements: Announcement[];
+  paymentMethods: PaymentMethodItem[];
+  coursePaymentMethods: Map<string, string[]>;
 };
 
 declare global {

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { compressImage } from "@/lib/image";
 import ImageCropDialog from "@/components/ImageCropDialog";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type Announcement = { id: string; kicker: string; title: string; body: string; cta: string; target: string; mediaType: "none" | "image" | "video"; mediaUrl?: string; published: boolean; sortOrder: number };
 type Draft = Omit<Announcement, "id">;
@@ -36,6 +37,6 @@ export default function AdminAnnouncementsManager() {
         <div style={{ display: "flex", gap: "10px" }}><button className="primary-btn" type="submit" disabled={saving}><Save size={15} /> {saving ? "جارٍ الحفظ..." : editingId ? "حفظ التعديل" : "إضافة الإعلان"}</button>{editingId && <button className="secondary-btn" type="button" disabled={saving} onClick={() => { setEditingId(null); setDraft(emptyDraft); }}>إلغاء</button>}</div>
       </form>
     </section>
-    <section className="paper-card published-panel admin-catalog-full"><div className="card-title"><div><span className="eyebrow">LIVE SLIDES</span><h2>الإعلانات الحالية</h2></div><Plus size={17} /></div>{loading ? <p className="muted">جاري التحميل...</p> : items.map(item => <div className="published-row" key={item.id}><div style={{ display: "flex", alignItems: "center", gap: "10px" }}>{item.mediaType === "image" ? <Image size={17} /> : item.mediaType === "video" ? <Video size={17} /> : null}<div><strong>{item.title}</strong><small>{item.published ? "منشور للزوار" : "مخفي"} · {targets.find(target => target.value === item.target)?.label}</small></div></div><div style={{ display: "flex", gap: "8px" }}><button className="secondary-btn compact" type="button" onClick={() => edit(item)}>تعديل</button><button className="secondary-btn compact" type="button" onClick={() => void remove(item.id)}><Trash2 size={14} /></button></div></div>)}</section>
+    <section className="paper-card published-panel admin-catalog-full"><div className="card-title"><div><span className="eyebrow">LIVE SLIDES</span><h2>الإعلانات الحالية</h2></div><Plus size={17} /></div>{loading ? <ListSkeleton rows={3} /> : items.map(item => <div className="published-row" key={item.id}><div style={{ display: "flex", alignItems: "center", gap: "10px" }}>{item.mediaType === "image" ? <Image size={17} /> : item.mediaType === "video" ? <Video size={17} /> : null}<div><strong>{item.title}</strong><small>{item.published ? "منشور للزوار" : "مخفي"} · {targets.find(target => target.value === item.target)?.label}</small></div></div><div style={{ display: "flex", gap: "8px" }}><button className="secondary-btn compact" type="button" onClick={() => edit(item)}>تعديل</button><button className="secondary-btn compact" type="button" onClick={() => void remove(item.id)}><Trash2 size={14} /></button></div></div>)}</section>
   </div>{cropFile && <ImageCropDialog file={cropFile} onCancel={() => setCropFile(null)} onComplete={value => { setDraft(current => ({ ...current, mediaType: "image", mediaUrl: value })); setCropFile(null); }} />}</>;
 }

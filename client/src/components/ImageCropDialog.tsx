@@ -77,7 +77,7 @@ export default function ImageCropDialog({ file, onCancel, onComplete }: Props) {
     if (!image) return;
     setBusy(true);
     try {
-      const size = 900;
+      const size = 512;
       const canvas = document.createElement("canvas");
       canvas.width = size;
       canvas.height = size;

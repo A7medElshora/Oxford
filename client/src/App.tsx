@@ -30,6 +30,7 @@ function pathToPage(path: string): string {
   if (path === "/admins") return "admins";
   if (path === "/attendance") return "attendance";
   if (path === "/payments") return "payments";
+  if (path === "/payment-methods" || path === "/payment_methods") return "payment-methods";
   if (path === "/reports") return "reports";
   if (path === "/announcements") return "announcements";
   if (path === "/messages") return "messages";
@@ -56,6 +57,7 @@ function pageToPath(page: string): string {
   if (page === "admins") return "/admins";
   if (page === "attendance") return "/attendance";
   if (page === "payments") return "/payments";
+  if (page === "payment-methods") return "/payment-methods";
   if (page === "reports") return "/reports";
   if (page === "announcements") return "/announcements";
   if (page === "messages") return "/messages";
